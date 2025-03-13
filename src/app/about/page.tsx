@@ -19,18 +19,14 @@ export default async function About() {
       },
     });
 
-    // Add debug logging for the response
-    console.log('Response status:', res.status);
-    console.log('Response headers:', Object.fromEntries(res.headers));
+
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error('Error response:', errorText);
       throw new Error(`Failed to fetch data: ${res.status} - ${errorText}`);
     }
 
     const data: DrupalResponse = await res.json();
-    console.log('About page data:', JSON.stringify(data, null, 2));
 
     if (!data.data?.[0]) {
       return <div>About page content not found</div>;
