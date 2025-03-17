@@ -19,6 +19,9 @@
   --breakpoint-medium: 768px;
   --breakpoint-large: 1024px;
   --breakpoint-xlarge: 1280px;
+  --font-title: var(--font-sofia-pro-medium, letter-spacing: 0.1em);
+  --font-body: var(--font-sofia-pro-light, letter-spacing: 0.025em);
+  --font-body-copy-callouts: var(--font-sofia-pro-light, letter-spacing: 0.025em);
 }
 
 @media (prefers-color-scheme: dark) {

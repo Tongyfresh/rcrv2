@@ -1,4 +1,6 @@
 import { DrupalResponse } from '@/types/drupal';
+import Navigation from '../components/navigation/navigation';
+
 
 export default async function About() {
   const baseUrl = process.env.DRUPAL_API_URL;
