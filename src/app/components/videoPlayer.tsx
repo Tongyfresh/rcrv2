@@ -1,0 +1,93 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { fetchDrupalImage } from '../utils/imageFetcher';
+import Image from 'next/image';
+
+interface VideoPlayerProps {
+  videoId: string;
+  title: string;
+  imageName: string;
+}
+
+export default function VideoPlayer({
+  videoId,
+  title,
+  imageName,
+}: VideoPlayerProps) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadThumbnail = async () => {
+      try {
+        const imageUrl = await fetchDrupalImage(imageName);
+        if (imageUrl) {
+          setThumbnailUrl(imageUrl);
+        }
+      } catch (err) {
+        setError((err as Error).message);
+        console.error('VideoPlayer thumbnail error:', err);
+      }
+    };
+
+    loadThumbnail();
+  }, [imageName]);
+
+  const handlePlay = () => setIsPlaying(true);
+
+  return (
+    <div className="flex w-full items-center justify-center py-12">
+      <div className="w-full max-w-5xl md:w-[70%]">
+        <h2 className="font-body text-primary mb-6 text-center text-2xl">
+          {title}
+        </h2>
+        <div
+          id="video-container"
+          className="group relative w-full overflow-hidden rounded-lg bg-black/5 pb-[56.25%]"
+        >
+          {!isPlaying ? (
+            <div className="absolute inset-0">
+              {thumbnailUrl && (
+                <div className="relative h-full w-full">
+                  <Image
+                    src={thumbnailUrl}
+                    alt={title}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 70vw"
+                    className="rounded-lg object-cover"
+                    priority
+                  />
+                </div>
+              )}
+              <button
+                onClick={handlePlay}
+                className="group absolute inset-0 flex h-full w-full items-center justify-center"
+                aria-label="Play video"
+              >
+                <div className="relative inset-0 z-10 flex h-20 w-20 items-center justify-center rounded-full bg-white/70 shadow-lg transition-transform group-hover:scale-110 hover:shadow-xl">
+                  <svg
+                    className="text-primary/70 h-10 w-10 translate-x-1 transform"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </button>
+            </div>
+          ) : (
+            <iframe
+              title={`YouTube video player - ${title}`}
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+              className="absolute top-0 left-0 h-full w-full rounded-lg"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

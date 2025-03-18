@@ -1,5 +1,5 @@
 import { DrupalResponse } from '@/types/drupal';
-import Navigation from '../components/navigation/navigation';
+import Navigation from '../components/navigation';
 
 
 export default async function About() {

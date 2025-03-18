@@ -1,11 +1,11 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import Navigation from './components/navigation/navigation';
-import { fetchLogoUrl } from './lib/api';
+import type { Metadata } from 'next';
+import './globals.css';
+import Navigation from './components/navigation';
+import { fetchDrupalImage } from './utils/imageFetcher';
 
 export const metadata: Metadata = {
-  title: "RCR",
-  description: "Rural Connections to Research",
+  title: 'RCR',
+  description: 'Rural Connections to Research',
 };
 
 export default async function RootLayout({
@@ -13,13 +13,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  let logoUrl: string | undefined;
-  try {
-    logoUrl = await fetchLogoUrl();
-  } catch (error) {
-    console.error('Failed to fetch logo:', error);
-    logoUrl = undefined;
-  }
+  // Fetch logo using imageFetcher
+  const logoUrl = await fetchDrupalImage('rcr_logo.png');
 
   return (
     <html lang="en">
@@ -28,12 +23,10 @@ export default async function RootLayout({
       </head>
       <body className="min-h-screen bg-white">
         <header>
-          <Navigation logoUrl={logoUrl} />
+          <Navigation logoUrl={logoUrl || ''} />
         </header>
-        <main>
-          {children}
-        </main>
-        <footer className="bg-gray-50 mt-auto">
+        <main>{children}</main>
+        <footer className="mt-auto bg-gray-50">
           {/* Add footer content here if needed */}
         </footer>
       </body>
