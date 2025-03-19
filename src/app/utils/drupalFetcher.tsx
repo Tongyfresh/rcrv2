@@ -1,8 +1,22 @@
+// Define filter value types that Drupal's JSON:API accepts
+type FilterValue = {
+  value?: string | number | boolean;
+  operator?: string;
+  path?: string;
+  condition?: {
+    path: string;
+    value: string | number | boolean;
+    operator?: string;
+  };
+};
+
 type FetchOptions = {
   fields?: string[];
   include?: string[];
   revalidate?: number;
-  filter?: Record<string, any>;
+  filter?: {
+    [key: string]: FilterValue | string | number | boolean;
+  };
 };
 
 export async function fetchDrupalData(

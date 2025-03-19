@@ -8,13 +8,6 @@ type Partner = {
   logoUrl: string | null;
 };
 
-interface ProcessedImage {
-  id: string;
-  name: string;
-  url: string;
-  imageUrl: string;
-}
-
 // For single image processing (logos, hero images)
 export const getDrupalImageUrl = (
   data: DrupalResponse,
