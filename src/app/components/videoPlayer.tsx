@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fetchDrupalImage } from '../utils/imageFetcher';
 import Image from 'next/image';
 
 interface VideoPlayerProps {
@@ -22,9 +21,45 @@ export default function VideoPlayer({
   useEffect(() => {
     const loadThumbnail = async () => {
       try {
-        const imageUrl = await fetchDrupalImage(imageName);
-        if (imageUrl) {
-          setThumbnailUrl(imageUrl);
+        const baseUrl =
+          process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0];
+        if (!baseUrl) throw new Error('API URL not configured');
+
+        const response = await fetch(
+          `${baseUrl}/jsonapi/media/image?filter[name][value]=${imageName}`,
+          {
+            headers: {
+              Accept: 'application/vnd.api+json',
+              'Content-Type': 'application/vnd.api+json',
+            },
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch image');
+
+        const data = await response.json();
+        const fileUrl =
+          data.data[0]?.relationships?.field_media_image?.data?.id;
+
+        if (fileUrl) {
+          const fileResponse = await fetch(
+            `${baseUrl}/jsonapi/file/file/${fileUrl}`,
+            {
+              headers: {
+                Accept: 'application/vnd.api+json',
+                'Content-Type': 'application/vnd.api+json',
+              },
+            }
+          );
+
+          if (!fileResponse.ok) throw new Error('Failed to fetch file');
+
+          const fileData = await fileResponse.json();
+          const imageUrl = fileData.data?.attributes?.uri?.url;
+
+          if (imageUrl) {
+            setThumbnailUrl(`${baseUrl}${imageUrl}`);
+          }
         }
       } catch (err) {
         setError((err as Error).message);
