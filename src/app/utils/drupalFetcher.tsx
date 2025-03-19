@@ -28,7 +28,8 @@ export async function fetchDrupalData(
       '/jsonapi'
     )[0]?.replace(/[/]+$/, '');
     if (!baseUrl) {
-      throw new Error('API URL not configured');
+      console.error('API URL not configured');
+      return { data: [] }; // Return empty data instead of throwing
     }
     // Extract the resource type from the endpoint
     const [type] = endpoint.split('/');
@@ -71,20 +72,17 @@ export async function fetchDrupalData(
       headers: {
         Accept: 'application/vnd.api+json',
         'Content-Type': 'application/vnd.api+json',
-        Authorization: `Basic ${process.env.NEXT_PUBLIC_DRUPAL_AUTH_TOKEN}`,
       },
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Response status:', response.status);
-      console.error('Error response:', errorText);
-      throw new Error(`Failed to fetch data: ${response.status}\n${errorText}`);
+      console.error(`API error: ${response.status}`);
+      return { data: [] }; // Return empty data on error
     }
 
     return response.json();
   } catch (error) {
-    console.error('Error fetching data:', error);
-    throw error;
+    console.error('Fetch error:', error);
+    return { data: [] }; // Return empty data on error
   }
 }
