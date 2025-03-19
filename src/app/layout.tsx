@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Navigation from './components/navigation';
-import { fetchDrupalImage } from './utils/imageFetcher';
+import { fetchDrupalData } from './utils/drupalFetcher';
+import { processMediaImage } from './utils/imageProcessor';
 
 export const metadata: Metadata = {
   title: 'RCR',
@@ -13,8 +14,21 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Fetch logo using imageFetcher
-  const logoUrl = await fetchDrupalImage('rcr_logo.png');
+  // Fetch logo using drupalFetcher
+  const logoData = await fetchDrupalData('media/image', {
+    fields: ['name', 'field_media_image'],
+    include: ['field_media_image'],
+    filter: {
+      name: 'rcr_logo.png',
+    },
+  });
+
+  const baseURL =
+    process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
+  const logoMediaId = logoData.data[0]?.id;
+  const logoUrl = logoMediaId
+    ? processMediaImage(logoData, logoMediaId, baseURL)
+    : null;
 
   return (
     <html lang="en">

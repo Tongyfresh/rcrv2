@@ -1,3 +1,5 @@
+import { isMediaImageField } from '@/types/drupal';
+
 type FetchOptions = {
   fields?: string[];
   include?: string[];
@@ -20,31 +22,33 @@ export async function fetchDrupalData(
     let apiUrl = `${baseUrl}/jsonapi/${endpoint}`;
     const queryParams = [];
 
+    // Handle main resource fields
     if (options.fields?.length) {
       queryParams.push(`fields[${type}]=${options.fields.join(',')}`);
     }
 
+    // Handle includes and their fields
     if (options.include?.length) {
-      // Remove duplicates and join includes
       const uniqueIncludes = [...new Set(options.include)];
       queryParams.push(
         `include=${encodeURIComponent(uniqueIncludes.join(','))}`
       );
 
-      if (options.include.includes('field_hero_image')) {
+      // Add generic media image fields
+      if (uniqueIncludes.some((include) => include.includes('field_'))) {
         queryParams.push(`fields[media--image]=name,field_media_image`);
-      }
-      if (options.include.includes('field_hero_image.field_media_image')) {
         queryParams.push(`fields[file--file]=uri,url`);
       }
     }
 
+    // Add status filter
     queryParams.push('filter[status][value]=1');
 
     if (queryParams.length > 0) {
       apiUrl += `?${queryParams.join('&')}`;
     }
 
+    // Development logging
     if (process.env.NODE_ENV === 'development') {
       console.log('Fetching from:', apiUrl);
     }

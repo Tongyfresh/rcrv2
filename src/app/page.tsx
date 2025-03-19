@@ -1,10 +1,11 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image'; // Import the Image component
-import { DrupalResponse } from '@/types/drupal';
 import VideoPlayer from './components/videoPlayer';
 import { fetchDrupalData } from './utils/drupalFetcher';
 import Tile from './components/tile';
+import LogoBar from './components/logoBar';
+import { processMediaImage, processPartnerLogos } from './utils/imageProcessor';
 
 export const metadata: Metadata = {
   title: 'Rural Connections to Research',
@@ -13,13 +14,20 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   try {
-    const data: DrupalResponse = await fetchDrupalData('node/home_page', {
-      fields: ['title', 'body', 'field_hero_image'],
-      include: ['field_hero_image', 'field_hero_image.field_media_image'],
-      revalidate: 3600,
-    });
+    const [homeData, partnerData] = await Promise.all([
+      fetchDrupalData('node/home_page', {
+        fields: ['title', 'body', 'field_hero_image'],
+        include: ['field_hero_image', 'field_hero_image.field_media_image'],
+        revalidate: 3600,
+      }),
+      fetchDrupalData('node/partner_logos', {
+        fields: ['title', 'field_partner_url', 'field_partner_logo'],
+        include: ['field_partner_logo', 'field_partner_logo.field_media_image'],
+        revalidate: 3600,
+      }),
+    ]);
 
-    if (!data.data?.[0]) {
+    if (!homeData.data?.[0]) {
       return (
         <div className="container mx-auto px-4 py-8">
           <div className="rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700">
@@ -29,36 +37,28 @@ export default async function Home() {
       );
     }
 
-    const homePage = data.data[0];
+    const homePage = homeData.data[0];
 
     // Debug logging in development
     if (process.env.NODE_ENV === 'development') {
       console.log('Homepage relationships:', homePage.relationships);
-      console.log('Included data:', data.included);
+      console.log('Included data:', homeData.included);
     }
 
-    let heroImageUrl = null;
-    const heroMediaId = homePage.relationships?.field_hero_image?.data?.id;
+    const baseURL =
+      process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
 
-    if (heroMediaId) {
-      const heroImage = data.included?.find(
-        (item) => item.type === 'media--image' && item.id === heroMediaId
-      );
+    // Process hero image
+    const heroImageUrl = homePage.relationships?.field_hero_image?.data?.id
+      ? processMediaImage(
+          homeData,
+          homePage.relationships.field_hero_image.data.id,
+          baseURL
+        )
+      : null;
 
-      if (heroImage) {
-        const fileId = heroImage.relationships?.field_media_image?.data?.id;
-        const fileEntity = data.included?.find(
-          (item) => item.type === 'file--file' && item.id === fileId
-        );
-
-        const baseURL = (
-          process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || ''
-        ).replace(/[/]+$/, '');
-        if (fileEntity?.attributes?.uri?.url) {
-          heroImageUrl = new URL(fileEntity.attributes.uri.url, baseURL).href;
-        }
-      }
-    }
+    // Process partner logos
+    const processedPartners = processPartnerLogos(partnerData, baseURL);
 
     return (
       <main className="min-h-screen">
@@ -161,6 +161,8 @@ export default async function Home() {
             </ul>
           </div>
         </div>
+
+        <LogoBar partners={processedPartners} />
       </main>
     );
   } catch (error) {
