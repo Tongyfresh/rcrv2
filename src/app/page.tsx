@@ -5,7 +5,7 @@ import VideoPlayer from './components/videoPlayer';
 import { fetchDrupalData } from './utils/drupalFetcher';
 import Tile from './components/tile';
 import LogoBar from './components/logoBar';
-import { processMediaImage, processPartnerLogos } from './utils/imageProcessor';
+import { getDrupalImageUrl, processPartnerLogos } from './utils/imageProcessor';
 
 export const metadata: Metadata = {
   title: 'Rural Connections to Research',
@@ -50,7 +50,7 @@ export default async function Home() {
 
     // Process hero image
     const heroImageUrl = homePage.relationships?.field_hero_image?.data?.id
-      ? processMediaImage(
+      ? getDrupalImageUrl(
           homeData,
           homePage.relationships.field_hero_image.data.id,
           baseURL

@@ -72,6 +72,16 @@ export default function VideoPlayer({
 
   const handlePlay = () => setIsPlaying(true);
 
+  if (error) {
+    return (
+      <div className="w-full py-12">
+        <div className="mx-auto max-w-5xl rounded-lg border border-red-400 bg-red-100 p-4 text-red-700">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-full items-center justify-center py-12">
       <div className="w-full max-w-5xl md:w-[70%]">

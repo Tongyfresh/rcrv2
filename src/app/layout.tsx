@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Navigation from './components/navigation';
 import { fetchDrupalData } from './utils/drupalFetcher';
-import { processMediaImage } from './utils/imageProcessor';
+import { getDrupalImageUrl } from './utils/imageProcessor';
 
 export const metadata: Metadata = {
   title: 'RCR',
@@ -27,7 +27,7 @@ export default async function RootLayout({
     process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
   const logoMediaId = logoData.data[0]?.id;
   const logoUrl = logoMediaId
-    ? processMediaImage(logoData, logoMediaId, baseURL)
+    ? getDrupalImageUrl(logoData, logoMediaId, baseURL)
     : null;
 
   return (

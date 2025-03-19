@@ -1,5 +1,13 @@
 import { DrupalResponse } from '@/types/drupal';
 
+// Import or define the Partner type to match logoBar.tsx
+type Partner = {
+  id: string;
+  name: string;
+  url: string;
+  logoUrl: string | null;
+};
+
 interface ProcessedImage {
   id: string;
   name: string;
@@ -7,7 +15,8 @@ interface ProcessedImage {
   imageUrl: string;
 }
 
-export const processMediaImage = (
+// For single image processing (logos, hero images)
+export const getDrupalImageUrl = (
   data: DrupalResponse,
   mediaId: string,
   baseURL: string
@@ -18,7 +27,10 @@ export const processMediaImage = (
 
   if (!mediaItem) return null;
 
-  const fileId = mediaItem.relationships?.field_media_image?.data?.id;
+  const mediaImageData = mediaItem.relationships?.field_media_image?.data;
+  const fileId = Array.isArray(mediaImageData)
+    ? mediaImageData[0]?.id
+    : mediaImageData?.id;
   const fileEntity = data.included?.find(
     (item) => item.type === 'file--file' && item.id === fileId
   );
@@ -31,7 +43,7 @@ export const processMediaImage = (
 export const processPartnerLogos = (
   data: DrupalResponse,
   baseURL: string
-): ProcessedImage[] => {
+): Partner[] => {
   const logos = data.data[0]?.relationships?.field_partner_logo?.data || [];
   const logoIds = Array.isArray(logos) ? logos : [logos];
 
@@ -41,22 +53,12 @@ export const processPartnerLogos = (
         (item) => item.type === 'media--image' && item.id === logo.id
       );
 
-      const fileEntity = data.included?.find(
-        (item) =>
-          item.type === 'file--file' &&
-          item.id === mediaItem?.relationships?.field_media_image?.data?.id
-      );
-
-      const logoUrl = fileEntity?.attributes?.uri?.url
-        ? `${baseURL}${fileEntity.attributes.uri.url}`
-        : null;
-
       return {
         id: logo.id,
         name: mediaItem?.attributes?.name || 'Partner Logo',
-        url: '', // Add partner URL if available
-        logoUrl,
+        url: '', // Add partner URL if available from your data
+        logoUrl: getDrupalImageUrl(data, logo.id, baseURL),
       };
     })
-    .filter((partner) => partner.logoUrl !== null); // Only include partners with valid logos
+    .filter((partner): partner is Partner => partner.logoUrl !== null);
 };

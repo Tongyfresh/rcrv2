@@ -28,6 +28,19 @@ export interface DrupalRelationships {
   [key: string]: MediaImageField;
 }
 
+// Define a type for dynamic attribute values
+type DrupalAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | {
+      value?: string;
+      format?: string;
+      url?: string;
+      [key: string]: DrupalAttributeValue | undefined;
+    };
+
 // Updated DrupalResponse interface
 export interface DrupalResponse {
   data: Array<{
@@ -39,7 +52,7 @@ export interface DrupalResponse {
         value: string;
         format: string;
       };
-      [key: string]: any; // Allow for dynamic field names
+      [key: string]: DrupalAttributeValue | undefined;
     };
     relationships?: DrupalRelationships;
   }>;
@@ -51,27 +64,42 @@ export interface DrupalResponse {
       uri?: {
         url: string;
       };
-      [key: string]: any;
+      [key: string]: DrupalAttributeValue | undefined;
     };
     relationships?: DrupalRelationships;
   }>;
 }
 
 // Helper function to check if a field is a media image field
-export function isMediaImageField(field: any): field is MediaImageField {
+export function isMediaImageField(field: unknown): field is MediaImageField {
+  if (!field || typeof field !== 'object') return false;
+  const fieldObj = field as { data?: unknown };
+
+  if (!fieldObj.data) return false;
+
+  if (Array.isArray(fieldObj.data)) {
+    return fieldObj.data.every(
+      (item) =>
+        item &&
+        typeof item === 'object' &&
+        'type' in item &&
+        item.type === 'media--image'
+    );
+  }
+
   return (
-    field?.data &&
-    (Array.isArray(field.data)
-      ? field.data.every((item) => item.type === 'media--image')
-      : field.data.type === 'media--image')
+    typeof fieldObj.data === 'object' &&
+    fieldObj.data !== null &&
+    'type' in fieldObj.data &&
+    fieldObj.data.type === 'media--image'
   );
 }
 
 // Helper function to get all media image IDs from a relationships object
 export function getMediaImageIds(relationships: DrupalRelationships): string[] {
   return Object.entries(relationships)
-    .filter(([_, value]) => isMediaImageField(value))
-    .flatMap(([_, value]) =>
+    .filter(([, value]) => isMediaImageField(value))
+    .flatMap(([, value]) =>
       Array.isArray(value.data)
         ? value.data.map((item) => item.id)
         : [value.data.id]

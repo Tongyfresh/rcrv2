@@ -2,6 +2,7 @@ type FetchOptions = {
   fields?: string[];
   include?: string[];
   revalidate?: number;
+  filter?: Record<string, any>;
 };
 
 export async function fetchDrupalData(
