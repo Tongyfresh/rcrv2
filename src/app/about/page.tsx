@@ -1,6 +1,4 @@
 import { DrupalResponse } from '@/types/drupal';
-import Navigation from '../components/navigation';
-
 
 export default async function About() {
   const baseUrl = process.env.DRUPAL_API_URL;
@@ -17,11 +15,9 @@ export default async function About() {
     const res = await fetch(apiUrl, {
       next: { revalidate: 3600 },
       headers: {
-        'Accept': 'application/vnd.api+json',
+        Accept: 'application/vnd.api+json',
       },
     });
-
-
 
     if (!res.ok) {
       const errorText = await res.text();
@@ -39,10 +35,14 @@ export default async function About() {
     return (
       <main className="container mx-auto px-4 py-8">
         <article className="prose max-w-none">
-          <h1 className="text-3xl font-bold mb-6">{aboutPage.attributes.title}</h1>
+          <h1 className="mb-6 text-3xl font-bold">
+            {aboutPage.attributes.title}
+          </h1>
           {aboutPage.attributes.body && aboutPage.attributes.body.value ? (
-            <div 
-              dangerouslySetInnerHTML={{ __html: aboutPage.attributes.body.value }} 
+            <div
+              dangerouslySetInnerHTML={{
+                __html: aboutPage.attributes.body.value,
+              }}
               className="mt-4"
             />
           ) : (

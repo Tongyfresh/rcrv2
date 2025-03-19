@@ -1,5 +1,3 @@
-import { isMediaImageField } from '@/types/drupal';
-
 type FetchOptions = {
   fields?: string[];
   include?: string[];
@@ -17,8 +15,8 @@ export async function fetchDrupalData(
     if (!baseUrl) {
       throw new Error('API URL not configured');
     }
-
-    const [type, resourceType] = endpoint.split('/');
+    // Extract the resource type from the endpoint
+    const [type] = endpoint.split('/');
     let apiUrl = `${baseUrl}/jsonapi/${endpoint}`;
     const queryParams = [];
 

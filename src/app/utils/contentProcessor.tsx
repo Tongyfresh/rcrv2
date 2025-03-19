@@ -1,5 +1,4 @@
 import * as cheerio from 'cheerio';
-import { fetchDrupalImage } from './imageFetcher';
 
 interface MediaItem {
   id: string;
@@ -22,9 +21,9 @@ interface MediaItem {
 
 export async function processBodyContent(
   content: string,
-  mediaItems: MediaItem[]
+  mediaItems: MediaItem[],
+  baseURL: string
 ): Promise<string> {
-  // Load content into cheerio
   const $ = cheerio.load(content);
 
   // Process each image
@@ -35,8 +34,13 @@ export async function processBodyContent(
         const filename = src.split('/').pop();
         if (filename) {
           try {
-            const imageUrl = await fetchDrupalImage(filename);
-            if (imageUrl) {
+            // Find matching media item by filename
+            const mediaItem = mediaItems.find(
+              (item) => item.attributes.name === filename
+            );
+            if (mediaItem?.attributes?.uri?.url) {
+              const imageUrl = new URL(mediaItem.attributes.uri.url, baseURL)
+                .href;
               $(img).attr('src', imageUrl);
             }
           } catch (error) {
