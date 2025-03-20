@@ -26,7 +26,7 @@ export default function VideoPlayer({
         if (!baseUrl) throw new Error('API URL not configured');
 
         const response = await fetch(
-          `${baseUrl}/jsonapi/media/image?filter[name][value]=${imageName}`,
+          `${baseUrl}/jsonapi/media/image?filter[name][operator]=CONTAINS&filter[name][value]=${encodeURIComponent(imageName)}`,
           {
             headers: {
               Accept: 'application/vnd.api+json',
@@ -55,15 +55,16 @@ export default function VideoPlayer({
           if (!fileResponse.ok) throw new Error('Failed to fetch file');
 
           const fileData = await fileResponse.json();
-          const imageUrl = fileData.data?.attributes?.uri?.url;
+          const url = fileData.data?.attributes?.uri?.url;
 
-          if (imageUrl) {
-            setThumbnailUrl(`${baseUrl}${imageUrl}`);
+          if (url) {
+            setThumbnailUrl(new URL(url, baseUrl).href);
           }
         }
       } catch (err) {
-        setError((err as Error).message);
-        console.error('VideoPlayer thumbnail error:', err);
+        const error = err as Error;
+        setError(error.message);
+        console.error('Error loading thumbnail:', error);
       }
     };
 
@@ -85,7 +86,7 @@ export default function VideoPlayer({
   return (
     <div className="flex w-full items-center justify-center py-12">
       <div className="w-full max-w-5xl md:w-[70%]">
-        <h2 className="font-body text-primary mb-6 text-center text-2xl">
+        <h2 className="font-body text-primary text-shadow-sm mb-6 text-center text-5xl uppercase">
           {title}
         </h2>
         <div

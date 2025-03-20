@@ -8,29 +8,63 @@ type Partner = {
   logoUrl: string | null;
 };
 
-// For single image processing (logos, hero images)
+// Add debugging to see what's happening with the map
 export const getDrupalImageUrl = (
   data: DrupalResponse,
   mediaId: string,
   baseURL: string
 ): string | null => {
-  const mediaItem = data.included?.find(
+  console.log('getDrupalImageUrl called with mediaId:', mediaId);
+
+  let mediaItem = data.included?.find(
     (item) => item.type === 'media--image' && item.id === mediaId
   );
 
-  if (!mediaItem) return null;
+  if (!mediaItem) {
+    console.log('Media item not found in included data');
+
+    // Special case for direct media response where data is the media item itself
+    if (
+      data.data &&
+      !Array.isArray(data.data) &&
+      typeof data.data === 'object' &&
+      'id' in data.data &&
+      (data.data as { id: string }).id === mediaId &&
+      'type' in data.data &&
+      (data.data as { type: string }).type === 'media--image'
+    ) {
+      console.log('Using direct media data instead of included');
+      mediaItem = data.data;
+    } else {
+      return null;
+    }
+  }
+
+  console.log('Found media item:', mediaItem.id);
 
   const mediaImageData = mediaItem.relationships?.field_media_image?.data;
+  console.log('Media image relationship data:', mediaImageData);
+
   const fileId = Array.isArray(mediaImageData)
     ? mediaImageData[0]?.id
     : mediaImageData?.id;
+
+  console.log('File ID extracted:', fileId);
+
   const fileEntity = data.included?.find(
     (item) => item.type === 'file--file' && item.id === fileId
   );
 
-  if (!fileEntity?.attributes?.uri?.url) return null;
+  if (!fileEntity?.attributes?.uri?.url) {
+    console.log('File entity or URI not found');
+    return null;
+  }
 
-  return new URL(fileEntity.attributes.uri.url, baseURL).href;
+  console.log('File entity found, URI:', fileEntity.attributes.uri.url);
+  const finalUrl = new URL(fileEntity.attributes.uri.url, baseURL).href;
+  console.log('Final URL:', finalUrl);
+
+  return finalUrl;
 };
 
 export const processPartnerLogos = (
@@ -55,3 +89,21 @@ export const processPartnerLogos = (
     })
     .filter((partner): partner is Partner => partner.logoUrl !== null);
 };
+
+// Add this function to handle direct file references
+export function getDrupalFileUrl(
+  fileId: string,
+  baseURL: string
+): string | null {
+  if (!fileId) return null;
+
+  // Handle full paths
+  if (fileId.includes('/')) {
+    // Extract just the filename
+    const filename = fileId.substring(fileId.lastIndexOf('/') + 1);
+    return `${baseURL}/sites/default/files/${filename}`;
+  }
+
+  // Handle simple IDs
+  return `${baseURL}/sites/default/files/${fileId}`;
+}
