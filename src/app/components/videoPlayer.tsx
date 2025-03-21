@@ -84,7 +84,7 @@ export default function VideoPlayer({
   }
 
   return (
-    <div className="flex w-full items-center justify-center py-12">
+    <div className="bg-secondary/50 flex w-full items-center justify-center py-12">
       <div className="w-full max-w-5xl md:w-[70%]">
         <h2 className="font-body text-primary text-shadow-sm mb-6 text-center text-5xl uppercase">
           {title}

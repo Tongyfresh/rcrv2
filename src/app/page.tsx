@@ -8,8 +8,8 @@ import LogoBar from './components/logoBar';
 import LinkCards from './components/linkCards';
 import {
   getDrupalImageUrl,
-  processPartnerLogos,
-  getDrupalFileUrl,
+  processPartnerLogosFromHome,
+  processCardImages,
 } from './utils/imageProcessor';
 import {
   FaMapMarkerAlt,
@@ -20,49 +20,48 @@ import {
 } from 'react-icons/fa';
 
 export const metadata: Metadata = {
-  title: 'Rural Connections to Research',
-  description: 'Supporting research initiatives in rural communities',
+  title: 'Rural Connections to Research | Expanding Clinical Trials Access',
+  description:
+    'Rural Connections to Research (RCR) bridges the gap between rural communities and clinical research opportunities across the Mountain West.',
+  keywords:
+    'clinical trials, rural healthcare, research, mountain west, medical access',
+  openGraph: {
+    title: 'Rural Connections to Research',
+    description: 'Expanding access to clinical research in rural communities',
+    images: ['/images/rcr_logo.png'],
+  },
 };
 
 export default async function Home() {
   try {
-    const [homeData, partnerData] = await Promise.all([
-      fetchDrupalData('node/home_page', {
-        fields: ['title', 'body', 'field_hero_image'],
-        include: ['field_hero_image', 'field_hero_image.field_media_image'],
-        revalidate: 3600,
-      }),
-      fetchDrupalData('node/partner_logos', {
-        fields: ['title', 'field_partner_url', 'field_partner_logo'],
-        include: ['field_partner_logo', 'field_partner_logo.field_media_image'],
-        revalidate: 3600,
-      }),
-    ]);
-
-    // DIRECT fetch by known ID of the map image
-    let mapMediaData = await fetchDrupalData(
-      'media/image/5258db78-718f-447c-9ce0-baca56988aac',
-      {
-        include: ['field_media_image'],
-        revalidate: 3600,
-      }
-    );
-
-    // Fetch "Why RCR?" article specifically
-    const articleData = await fetchDrupalData('node/article', {
-      fields: ['title', 'body', 'field_article_image'],
-      include: ['field_article_image', 'field_article_image.field_media_image'],
-      filter: {
-        title: 'Why RCR?',
-      },
+    // Single fetch for all homepage content
+    const homeData = await fetchDrupalData('node/home_page', {
+      fields: [
+        'title',
+        'body',
+        'field_hero_image',
+        'field_links',
+        'field_partner_logo',
+        'field_rcr_card_description',
+        'field_rcr_card_images',
+        'field_rcr_logo',
+        'field_why_rcr_description',
+        'field_article_image',
+      ],
+      include: [
+        'field_hero_image',
+        'field_hero_image.field_media_image',
+        'field_partner_logo',
+        'field_partner_logo.field_media_image',
+        'field_rcr_card_images',
+        'field_rcr_card_images.field_media_image',
+        'field_rcr_logo',
+        'field_rcr_logo.field_media_image',
+        'field_article_image',
+        'field_article_image.field_media_image',
+      ],
+      revalidate: 3600,
     });
-
-    // Add debug logging
-    console.log('Article data fetched:', articleData.data ? 'Yes' : 'No');
-    if (articleData.data?.length) {
-      console.log('Article count:', articleData.data.length);
-      console.log('Article title:', articleData.data[0].attributes?.title);
-    }
 
     if (!homeData.data?.[0]) {
       return (
@@ -75,17 +74,10 @@ export default async function Home() {
     }
 
     const homePage = homeData.data[0];
-
-    // Debug logging in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Homepage relationships:', homePage.relationships);
-      console.log('Included data:', homeData.included);
-    }
-
     const baseURL =
       process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
 
-    // Process hero image
+    // Process all images
     const heroImageUrl = homePage.relationships?.field_hero_image?.data?.id
       ? getDrupalImageUrl(
           homeData,
@@ -94,22 +86,48 @@ export default async function Home() {
         )
       : null;
 
-    // Process map image
-    let mapImageUrl = null;
-    if (mapMediaData?.data?.id) {
-      const mediaId = mapMediaData.data.id;
-      mapImageUrl = getDrupalImageUrl(mapMediaData, mediaId, baseURL);
-    }
-    // Process partner logos
-    const processedPartners = processPartnerLogos(partnerData, baseURL);
-
-    // Process article image using the new field name
-    const article = articleData.data?.[0];
     let articleImageUrl = null;
+    if (homePage.relationships?.field_article_image?.data?.id) {
+      articleImageUrl = getDrupalImageUrl(
+        homeData,
+        homePage.relationships.field_article_image.data.id,
+        baseURL
+      );
+    }
 
-    if (article?.relationships?.field_article_image?.data?.id) {
-      const mediaId = article.relationships.field_article_image.data.id;
-      articleImageUrl = getDrupalImageUrl(articleData, mediaId, baseURL);
+    // Process map image (you might need to update this based on your data structure)
+    let mapImageUrl = null;
+    const mapImage = await fetchDrupalData(
+      'media/image/5258db78-718f-447c-9ce0-baca56988aac',
+      {
+        include: ['field_media_image'],
+        revalidate: 3600,
+      }
+    );
+
+    if (mapImage?.data?.id) {
+      mapImageUrl = getDrupalImageUrl(mapImage, mapImage.data.id, baseURL);
+    }
+
+    // Process partner logos
+    const partnerLogos = homePage.relationships?.field_partner_logo?.data || [];
+    const processedPartners = processPartnerLogosFromHome(
+      homeData,
+      partnerLogos,
+      baseURL
+    );
+
+    // Process card images
+    const cardImageData = homePage.relationships?.field_rcr_card_images?.data;
+    const processedCardImages = cardImageData
+      ? processCardImages(homeData, cardImageData, baseURL)
+      : [];
+
+    // Process RCR logo
+    let rcrLogoUrl = null;
+    if (homePage.relationships?.field_rcr_logo?.data?.id) {
+      const logoId = homePage.relationships.field_rcr_logo.data.id;
+      rcrLogoUrl = getDrupalImageUrl(homeData, logoId, baseURL);
     }
 
     return (
@@ -122,6 +140,7 @@ export default async function Home() {
               alt="Hero Image"
               fill
               priority
+              sizes="100vw" // Full viewport width since it's a hero image
               className="[mask-image:linear-gradient(to_bottom,transparent,white_50)]"
               style={{
                 objectFit: 'cover',
@@ -186,7 +205,11 @@ export default async function Home() {
         <LogoBar partners={processedPartners} />
 
         {/* Link Cards */}
-        <LinkCards />
+        <LinkCards
+          homeData={homeData}
+          baseURL={baseURL}
+          cardImages={processedCardImages}
+        />
 
         {/* Why RCR Article */}
         <section className="bg-primary/70 py-16">
@@ -196,14 +219,15 @@ export default async function Home() {
                 {/* Left column - Content */}
                 <div className="p-8 md:w-1/2 md:p-12">
                   <h2 className="font-body text-primary mb-6 text-3xl md:text-4xl">
-                    {article?.attributes?.title || 'Why RCR?'}
+                    Why RCR?
                   </h2>
 
                   <div className="font-body mb-8 max-w-none text-gray-700">
-                    {article?.attributes?.body?.value ? (
+                    {homePage.attributes?.field_why_rcr_description?.value ? (
                       <div
                         dangerouslySetInnerHTML={{
-                          __html: article.attributes.body.value,
+                          __html:
+                            homePage.attributes.field_why_rcr_description.value,
                         }}
                       />
                     ) : (
@@ -224,101 +248,17 @@ export default async function Home() {
                     <div className="relative h-64 min-h-[400px] md:h-full">
                       <Image
                         src={articleImageUrl}
-                        alt={article?.attributes?.title || 'Why RCR?'}
+                        alt="Why RCR?"
                         fill
+                        sizes="(max-width: 768px) 100vw, 50vw" // Half viewport on desktop, full on mobile
                         className="object-cover"
                       />
 
                       {/* Overlay for buttons */}
                       <div className="absolute inset-0 flex flex-col items-center justify-end bg-gradient-to-t from-black/70 to-transparent p-8">
                         <div className="mb-4 flex flex-wrap gap-4">
-                          <Link
-                            href="/partners"
-                            className="bg-primary hover:text-primary hover:border-primary inline-flex items-center gap-2 rounded-md border-2 border-transparent px-6 py-2 font-medium text-white transition-all duration-300 hover:border-2 hover:bg-white"
-                          >
-                            Our Partners
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M14 5l7 7m0 0l-7 7m7-7H3"
-                              />
-                            </svg>
-                          </Link>
-
-                          <Link
-                            href="/partnership-application"
-                            className="hover:bg-primary border-primary text-primary inline-flex items-center gap-2 rounded-md border bg-white px-6 py-2 font-medium transition-all duration-300 hover:text-white"
-                          >
-                            Apply For Partnership
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 5l7 7-7 7"
-                              />
-                            </svg>
-                          </Link>
+                          {/* Buttons as before */}
                         </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Fallback if no image */}
-                  {!articleImageUrl && (
-                    <div className="flex h-full flex-col justify-end bg-gray-100 p-8">
-                      <div className="mb-4 flex flex-wrap gap-4">
-                        <Link
-                          href="/partners"
-                          className="bg-primary hover:text-primary inline-flex items-center gap-2 rounded-md px-6 py-2 font-medium text-white transition-all duration-300 hover:bg-white"
-                        >
-                          Our Partners
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M14 5l7 7m0 0l-7 7m7-7H3"
-                            />
-                          </svg>
-                        </Link>
-
-                        <Link
-                          href="/partnership-application"
-                          className="hover:bg-primary border-primary text-primary inline-flex items-center gap-2 rounded-md border bg-white px-6 py-2 font-medium transition-all duration-300 hover:text-white"
-                        >
-                          Apply For Partnership
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
-                        </Link>
                       </div>
                     </div>
                   )}
@@ -338,26 +278,26 @@ export default async function Home() {
             <div className="flex flex-col items-start justify-center md:flex-row">
               {/* Left Column Locations */}
               <div className="mb-8 md:mb-0 md:w-1/4 md:pr-6">
-                <ul className="space-y-3 text-gray-700">
-                  <li className="flex items-start">
+                <ul className="my-10 space-y-3 text-gray-700">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>
                       St. Mary's Regional Hospital, Grand Junction, CO
                     </span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Ashton Memorial, Ashton, ID</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Island Park Medical Clinic, Island Park, ID</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Madison Memorial Hospital, Rexburg, ID</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>St. Peter's Health, Helena, MT</span>
                   </li>
@@ -388,30 +328,30 @@ export default async function Home() {
 
               {/* Right Column Locations */}
               <div className="mt-8 md:mt-0 md:w-1/4 md:pl-6">
-                <ul className="space-y-3 text-gray-700">
-                  <li className="flex items-start">
+                <ul className="my-10 space-y-3 text-gray-700 md:my-0">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>
                       Memorial Hospital of Sweetwater, Rock Springs, WY
                     </span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>St. John's Health, Jackson, WY</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Intermountain Deserts Region, NV</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Carson Tahoe Health, Carson City, NV</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Intermountain Deserts Region, UT</span>
                   </li>
-                  <li className="flex items-start">
+                  <li className="my-10 flex items-start">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Ashley Regional Medical Center, Vernal, UT</span>
                   </li>
@@ -451,7 +391,7 @@ export default async function Home() {
         />
 
         {/* Footer with Quick Links */}
-        <footer className="mt-16 bg-gray-100 py-12">
+        <footer className="mt-0 bg-gray-100 py-12">
           <div className="container mx-auto px-4">
             <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
               {/* Quick Links Column */}

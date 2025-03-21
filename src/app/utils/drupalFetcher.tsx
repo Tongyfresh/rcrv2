@@ -31,14 +31,31 @@ export async function fetchDrupalData(
       console.error('API URL not configured');
       return { data: [] }; // Return empty data instead of throwing
     }
-    // Extract the resource type from the endpoint
-    const [type] = endpoint.split('/');
-    let apiUrl = `${baseUrl}/jsonapi/${endpoint}`;
+
+    // Handle different endpoint formats
+    // If endpoint contains '/' it's a path with resource type and ID
+    // If not, it's just a resource type
+    let resourceType = endpoint;
+    let apiUrl = '';
+
+    if (endpoint.includes('/')) {
+      // It's a path like 'node/article/123' or 'media--image/456'
+      apiUrl = `${baseUrl}/jsonapi/${endpoint}`;
+      // Extract resource type for fields param
+      resourceType = endpoint.split('/')[0];
+    } else {
+      // It's just a resource type like 'node--article' or 'media--image'
+      apiUrl = `${baseUrl}/jsonapi/${endpoint}`;
+      resourceType = endpoint;
+    }
+
+    console.log(`Resource type: ${resourceType}, Full endpoint: ${endpoint}`);
+
     const queryParams = [];
 
     // Handle main resource fields
     if (options.fields?.length) {
-      queryParams.push(`fields[${type}]=${options.fields.join(',')}`);
+      queryParams.push(`fields[${resourceType}]=${options.fields.join(',')}`);
     }
 
     // Handle includes and their fields
@@ -48,15 +65,52 @@ export async function fetchDrupalData(
         `include=${encodeURIComponent(uniqueIncludes.join(','))}`
       );
 
-      // Add generic media image fields
+      // Add generic media image fields only if not already specified
       if (uniqueIncludes.some((include) => include.includes('field_'))) {
-        queryParams.push(`fields[media--image]=name,field_media_image`);
-        queryParams.push(`fields[file--file]=uri,url`);
+        // Check if media--image fields are already specified
+        if (
+          !options.fields?.some((field) => field.includes('field_media_image'))
+        ) {
+          queryParams.push(`fields[media--image]=name,field_media_image`);
+        }
+
+        // Check if file--file fields are already specified
+        if (
+          !queryParams.some((param) => param.includes('fields[file--file]'))
+        ) {
+          queryParams.push(`fields[file--file]=uri,url`);
+        }
       }
     }
 
-    // Add status filter
-    queryParams.push('filter[status][value]=1');
+    // Add filters
+    if (options.filter) {
+      Object.entries(options.filter).forEach(([key, value]) => {
+        if (typeof value === 'object' && value !== null) {
+          // Handle complex filter conditions
+          if ('value' in value) {
+            queryParams.push(
+              `filter[${key}][value]=${encodeURIComponent(String(value.value))}`
+            );
+          }
+          if ('operator' in value) {
+            queryParams.push(
+              `filter[${key}][operator]=${encodeURIComponent(String(value.operator))}`
+            );
+          }
+        } else {
+          // Simple filter
+          queryParams.push(
+            `filter[${key}][value]=${encodeURIComponent(String(value))}`
+          );
+        }
+      });
+    }
+
+    // Add status filter if not already specified
+    if (!options.filter?.status) {
+      queryParams.push('filter[status][value]=1');
+    }
 
     if (queryParams.length > 0) {
       apiUrl += `?${queryParams.join('&')}`;
@@ -76,8 +130,27 @@ export async function fetchDrupalData(
     });
 
     if (!response.ok) {
-      console.error(`API error: ${response.status}`);
-      return { data: [] }; // Return empty data on error
+      // Only log detailed errors during development
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`API error: ${response.status} for ${apiUrl}`);
+      } else {
+        // In production, only log critical errors (500+)
+        if (response.status >= 500) {
+          console.error(`Server error: ${response.status}`);
+        }
+      }
+
+      // For 404s from media queries, this is often expected when checking for optional content
+      if (
+        response.status === 404 &&
+        (endpoint.includes('media') || endpoint.includes('file'))
+      ) {
+        // Silent fail for media/file 404s
+        return { data: [] };
+      }
+
+      // Return empty data structure that matches what your code expects
+      return { data: [] };
     }
 
     return response.json();

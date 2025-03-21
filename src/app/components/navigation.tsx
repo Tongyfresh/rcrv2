@@ -24,7 +24,7 @@ const Navigation = ({ logoUrl }: NavigationProps) => {
           {/* Logo with Text */}
           <div className="flex flex-shrink-0 items-center gap-4">
             <Link href="/" className="flex items-center">
-              {logoUrl && (
+              {logoUrl ? (
                 <div className="relative h-[110px] w-[110px]">
                   <Image
                     src={logoUrl}
@@ -35,6 +35,9 @@ const Navigation = ({ logoUrl }: NavigationProps) => {
                     className="object-contain"
                   />
                 </div>
+              ) : (
+                // No fallback, just show the text
+                <div className="h-[110px] w-[110px]"></div>
               )}
               <span className="text-primary ml-4 text-4xl tracking-[.1em] underline">
                 RCR

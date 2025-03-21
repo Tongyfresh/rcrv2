@@ -126,3 +126,11 @@ export interface DrupalPartnerLogo {
     };
   };
 }
+
+export interface ProcessedImage {
+  id: string;
+  url: string;
+  alt: string;
+  title: string; // Changed from optional to required
+  drupalId: number | null;
+}

@@ -1,4 +1,4 @@
-import { DrupalResponse } from '@/types/drupal';
+import { DrupalResponse, ProcessedImage } from '@/types/drupal';
 
 // Import or define the Partner type to match logoBar.tsx
 type Partner = {
@@ -8,21 +8,17 @@ type Partner = {
   logoUrl: string | null;
 };
 
-// Add debugging to see what's happening with the map
 export const getDrupalImageUrl = (
   data: DrupalResponse,
   mediaId: string,
   baseURL: string
 ): string | null => {
-  console.log('getDrupalImageUrl called with mediaId:', mediaId);
-
+  // Find media item in included data or use direct media data
   let mediaItem = data.included?.find(
     (item) => item.type === 'media--image' && item.id === mediaId
   );
 
   if (!mediaItem) {
-    console.log('Media item not found in included data');
-
     // Special case for direct media response where data is the media item itself
     if (
       data.data &&
@@ -33,38 +29,29 @@ export const getDrupalImageUrl = (
       'type' in data.data &&
       (data.data as { type: string }).type === 'media--image'
     ) {
-      console.log('Using direct media data instead of included');
       mediaItem = data.data;
     } else {
       return null;
     }
   }
 
-  console.log('Found media item:', mediaItem.id);
-
+  // Get file ID from media item
   const mediaImageData = mediaItem.relationships?.field_media_image?.data;
-  console.log('Media image relationship data:', mediaImageData);
-
   const fileId = Array.isArray(mediaImageData)
     ? mediaImageData[0]?.id
     : mediaImageData?.id;
 
-  console.log('File ID extracted:', fileId);
-
+  // Find file entity in included data
   const fileEntity = data.included?.find(
     (item) => item.type === 'file--file' && item.id === fileId
   );
 
   if (!fileEntity?.attributes?.uri?.url) {
-    console.log('File entity or URI not found');
     return null;
   }
 
-  console.log('File entity found, URI:', fileEntity.attributes.uri.url);
-  const finalUrl = new URL(fileEntity.attributes.uri.url, baseURL).href;
-  console.log('Final URL:', finalUrl);
-
-  return finalUrl;
+  // Build the final URL
+  return new URL(fileEntity.attributes.uri.url, baseURL).href;
 };
 
 export const processPartnerLogos = (
@@ -90,7 +77,30 @@ export const processPartnerLogos = (
     .filter((partner): partner is Partner => partner.logoUrl !== null);
 };
 
-// Add this function to handle direct file references
+export const processPartnerLogosFromHome = (
+  data: DrupalResponse,
+  logoData: any[],
+  baseURL: string
+): Partner[] => {
+  const logoIds = Array.isArray(logoData) ? logoData : [logoData];
+
+  return logoIds
+    .map((logo) => {
+      const mediaItem = data.included?.find(
+        (item) => item.type === 'media--image' && item.id === logo.id
+      );
+
+      return {
+        id: logo.id,
+        name: mediaItem?.attributes?.name || 'Partner Logo',
+        url: '', // Add partner URL if available from your data
+        logoUrl: getDrupalImageUrl(data, logo.id, baseURL),
+      };
+    })
+    .filter((partner): partner is Partner => partner.logoUrl !== null);
+};
+
+// Function to handle direct file references
 export function getDrupalFileUrl(
   fileId: string,
   baseURL: string
@@ -107,3 +117,43 @@ export function getDrupalFileUrl(
   // Handle simple IDs
   return `${baseURL}/sites/default/files/${fileId}`;
 }
+
+// Updated function to process card images from card image data with proper typing
+export const processCardImages = (
+  data: DrupalResponse,
+  cardImageData: any,
+  baseURL: string
+): ProcessedImage[] => {
+  // Early return if no data
+  if (!cardImageData) return [];
+
+  // Convert to array if it's not already
+  const imageItems = Array.isArray(cardImageData)
+    ? cardImageData
+    : [cardImageData];
+
+  // Create a properly typed result array
+  const result: ProcessedImage[] = [];
+
+  // Process each image
+  for (const image of imageItems) {
+    if (!image?.id) continue;
+
+    const imageUrl = getDrupalImageUrl(data, image.id, baseURL);
+    if (!imageUrl) continue;
+
+    const mediaItem = data.included?.find(
+      (item) => item.type === 'media--image' && item.id === image.id
+    );
+
+    result.push({
+      id: image.id,
+      url: imageUrl,
+      alt: image.meta?.alt || mediaItem?.attributes?.name || 'Card Image',
+      title: image.meta?.title || '',
+      drupalId: image.meta?.drupal_internal__target_id || null,
+    });
+  }
+
+  return result;
+};
