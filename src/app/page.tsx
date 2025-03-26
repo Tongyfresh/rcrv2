@@ -1,23 +1,18 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import Image from 'next/image'; // Import the Image component
+import Image from 'next/image';
 import VideoPlayer from './components/videoPlayer';
-import { fetchDrupalData } from './utils/drupalFetcher';
+import { fetchHomePageData } from './utils/drupalFetcher';
+import {
+  processHomePageData,
+  adaptPartnersForLogoBar,
+} from './utils/contentProcessor';
 import Tile from './components/tile';
 import LogoBar from './components/logoBar';
 import LinkCards from './components/linkCards';
-import {
-  getDrupalImageUrl,
-  processPartnerLogosFromHome,
-  processCardImages,
-} from './utils/imageProcessor';
-import {
-  FaMapMarkerAlt,
-  FaToolbox,
-  FaEnvelope,
-  FaPhone,
-  FaExternalLinkAlt,
-} from 'react-icons/fa';
+import { RichTextContent } from './utils/richTextContent';
+
+// Component for rendering rich text fields safely
 
 export const metadata: Metadata = {
   title: 'Rural Connections to Research | Expanding Clinical Trials Access',
@@ -34,153 +29,79 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   try {
-    // Single fetch for all homepage content
-    const homeData = await fetchDrupalData('node/home_page', {
-      fields: [
-        'title',
-        'body',
-        'field_hero_image',
-        'field_links',
-        'field_partner_logo',
-        'field_rcr_card_description',
-        'field_rcr_card_images',
-        'field_rcr_logo',
-        'field_why_rcr_description',
-        'field_article_image',
-      ],
-      include: [
-        'field_hero_image',
-        'field_hero_image.field_media_image',
-        'field_partner_logo',
-        'field_partner_logo.field_media_image',
-        'field_rcr_card_images',
-        'field_rcr_card_images.field_media_image',
-        'field_rcr_logo',
-        'field_rcr_logo.field_media_image',
-        'field_article_image',
-        'field_article_image.field_media_image',
-      ],
-      revalidate: 3600,
-    });
+    // Fetch and process home data
+    const homeData = await fetchHomePageData();
+    const {
+      homePage,
+      heroImageUrl,
+      articleImageUrl,
+      mapImageUrl,
+      cards,
+      cardTitle,
+      partners,
+    } = processHomePageData(homeData);
 
-    if (!homeData.data?.[0]) {
+    if (!homePage) {
       return (
-        <div className="container mx-auto px-4 py-8">
-          <div className="rounded border border-yellow-400 bg-yellow-100 px-4 py-3 text-yellow-700">
-            Homepage content not found
+        <div className="container mx-auto p-8">
+          <div className="rounded-lg bg-yellow-50 p-6 text-yellow-800">
+            <h2 className="mb-2 text-xl font-bold">Content Unavailable</h2>
+            <p>
+              We're having trouble accessing the homepage content. Please try
+              again later.
+            </p>
           </div>
         </div>
       );
     }
 
-    const homePage = homeData.data[0];
-    const baseURL =
-      process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
-
-    // Process all images
-    const heroImageUrl = homePage.relationships?.field_hero_image?.data?.id
-      ? getDrupalImageUrl(
-          homeData,
-          homePage.relationships.field_hero_image.data.id,
-          baseURL
-        )
-      : null;
-
-    let articleImageUrl = null;
-    if (homePage.relationships?.field_article_image?.data?.id) {
-      articleImageUrl = getDrupalImageUrl(
-        homeData,
-        homePage.relationships.field_article_image.data.id,
-        baseURL
-      );
-    }
-
-    // Process map image (you might need to update this based on your data structure)
-    let mapImageUrl = null;
-    const mapImage = await fetchDrupalData(
-      'media/image/5258db78-718f-447c-9ce0-baca56988aac',
-      {
-        include: ['field_media_image'],
-        revalidate: 3600,
-      }
-    );
-
-    if (mapImage?.data?.id) {
-      mapImageUrl = getDrupalImageUrl(mapImage, mapImage.data.id, baseURL);
-    }
-
-    // Process partner logos
-    const partnerLogos = homePage.relationships?.field_partner_logo?.data || [];
-    const processedPartners = processPartnerLogosFromHome(
-      homeData,
-      partnerLogos,
-      baseURL
-    );
-
-    // Process card images
-    const cardImageData = homePage.relationships?.field_rcr_card_images?.data;
-    const processedCardImages = cardImageData
-      ? processCardImages(homeData, cardImageData, baseURL)
-      : [];
-
-    // Process RCR logo
-    let rcrLogoUrl = null;
-    if (homePage.relationships?.field_rcr_logo?.data?.id) {
-      const logoId = homePage.relationships.field_rcr_logo.data.id;
-      rcrLogoUrl = getDrupalImageUrl(homeData, logoId, baseURL);
-    }
+    console.log('Available data:', {
+      hasHeroImage: !!heroImageUrl,
+      hasArticleImage: !!articleImageUrl,
+      hasMapImage: !!mapImageUrl,
+      cardCount: cards?.length || 0,
+      partnerCount: partners?.length || 0,
+    });
 
     return (
-      <main className="min-h-screen">
-        {/* Hero Section */}
+      <>
+        {/* 1. Hero Section with Title */}
         {heroImageUrl && (
-          <div className="relative h-100 w-full overflow-hidden">
+          <div className="relative h-[300px] w-full overflow-hidden">
             <Image
               src={heroImageUrl}
-              alt="Hero Image"
+              alt="Rural Connections to Research Hero"
               fill
               priority
-              sizes="100vw" // Full viewport width since it's a hero image
-              className="[mask-image:linear-gradient(to_bottom,transparent,white_50)]"
-              style={{
-                objectFit: 'cover',
-                objectPosition: 'center 35%',
-              }}
+              sizes="100vw"
+              className="object-cover"
+              style={{ objectPosition: 'center 40%' }}
             />
-            <div
-              className="absolute inset-0"
-              style={
-                {
-                  // background: 'linear-gradient(0deg, white 0%, transparent 30%)',
-                }
-              }
-            ></div>
-            {/* Title overlay */}
-            <div className="absolute top-10 right-0 left-0 px-4 pb-12">
-              <div className="container mx-auto">
-                <h1 className="font-title text-shadow-lg mx-auto max-w-3xl text-center text-6xl text-pretty text-white uppercase">
-                  {homePage.attributes.title}
-                </h1>
+            {/* Gradient overlay */}
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent/50 via-transparent/25 to-white" />
+            {/* Content overlay */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-shadow-lg max-w-4xl p-8 text-center text-gray-100">
+                <div className="font-title mb-6 text-4xl font-bold md:text-6xl">
+                  {homePage.attributes?.title ||
+                    'Rural Connections to Research'}
+                </div>
               </div>
             </div>
           </div>
         )}
+        <div className="mx-auto flex items-center justify-center px-4 py-8">
+          {homePage.attributes?.body && (
+            <RichTextContent
+              content={homePage.attributes.body}
+              className="text-black"
+            />
+          )}
+        </div>
 
-        <div className="container mx-auto px-4 py-8">
-          {/* Main Content */}
-          <article className="prose mx-auto mb-12 max-w-3xl text-center">
-            {homePage.attributes.body?.value && (
-              <div
-                className="text-lg text-gray-700"
-                dangerouslySetInnerHTML={{
-                  __html: homePage.attributes.body.value,
-                }}
-              />
-            )}
-          </article>
-
-          {/* Tiles Grid */}
-          <div className="mb-12 grid grid-cols-1 gap-6 md:grid-cols-3">
+        {/* 2. Three Buttons to Other Pages (Tiles) */}
+        <div className="container mx-auto px-4 py-12">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Tile
               href="/toolbox"
               title="RCR Toolbox"
@@ -201,17 +122,16 @@ export default async function Home() {
             />
           </div>
         </div>
-        {/* Logo Bar */}
-        <LogoBar partners={processedPartners} />
 
-        {/* Link Cards */}
-        <LinkCards
-          homeData={homeData}
-          baseURL={baseURL}
-          cardImages={processedCardImages}
-        />
+        {/* 3. Partner Logos */}
+        {partners && partners.length > 0 && (
+          <LogoBar partners={adaptPartnersForLogoBar(partners)} />
+        )}
 
-        {/* Why RCR Article */}
+        {/* 4. Link Cards */}
+        {cards && cards.length > 0 && <LinkCards cards={cards} />}
+
+        {/* 5. Why RCR Section */}
         <section className="bg-primary/70 py-16">
           <div className="container mx-auto px-4">
             <div className="overflow-hidden rounded-xl bg-white shadow-lg">
@@ -221,45 +141,39 @@ export default async function Home() {
                   <h2 className="font-body text-primary mb-6 text-3xl md:text-4xl">
                     Why RCR?
                   </h2>
-
-                  <div className="font-body mb-8 max-w-none text-gray-700">
-                    {homePage.attributes?.field_why_rcr_description?.value ? (
-                      <div
-                        dangerouslySetInnerHTML={{
-                          __html:
-                            homePage.attributes.field_why_rcr_description.value,
-                        }}
+                  <div className="prose prose-lg mb-8 max-w-none text-gray-700">
+                    {homePage.attributes?.field_why_rcr_description ? (
+                      <RichTextContent
+                        content={homePage.attributes.field_why_rcr_description}
+                        className="prose prose-lg"
                       />
                     ) : (
                       <p>
-                        Rural Connections to Research (RCR) bridges the gap
-                        between rural communities and clinical research
-                        opportunities. By creating infrastructures for
-                        collaboration, we're transforming how research reaches
-                        underserved populations across the Mountain West.
+                        Join us in our mission to connect rural communities with
+                        clinical research. We are bringing research closer to
+                        home through strong partnerships and expanded access.
                       </p>
                     )}
                   </div>
                 </div>
 
-                {/* Right column - Image and Buttons */}
+                {/* Right column - Image */}
                 <div className="relative md:w-1/2">
-                  {articleImageUrl && (
+                  {articleImageUrl ? (
                     <div className="relative h-64 min-h-[400px] md:h-full">
                       <Image
                         src={articleImageUrl}
                         alt="Why RCR?"
                         fill
-                        sizes="(max-width: 768px) 100vw, 50vw" // Half viewport on desktop, full on mobile
+                        sizes="(max-width: 768px) 100vw, 50vw"
                         className="object-cover"
                       />
-
-                      {/* Overlay for buttons */}
-                      <div className="absolute inset-0 flex flex-col items-center justify-end bg-gradient-to-t from-black/70 to-transparent p-8">
-                        <div className="mb-4 flex flex-wrap gap-4">
-                          {/* Buttons as before */}
-                        </div>
-                      </div>
+                      {/* Optional overlay for visual appeal */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                    </div>
+                  ) : (
+                    <div className="flex h-64 min-h-[400px] items-center justify-center bg-gray-200">
+                      <p className="text-gray-500">Image not available</p>
                     </div>
                   )}
                 </div>
@@ -268,7 +182,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Map Section with Location Listings */}
+        {/* 6. Map Section */}
         <section className="bg-white py-16">
           <div className="container mx-auto px-4">
             <h2 className="text-primary font-body mb-12 text-center text-3xl md:text-4xl">
@@ -278,26 +192,26 @@ export default async function Home() {
             <div className="flex flex-col items-start justify-center md:flex-row">
               {/* Left Column Locations */}
               <div className="mb-8 md:mb-0 md:w-1/4 md:pr-6">
-                <ul className="my-10 space-y-3 text-gray-700">
-                  <li className="my-10 flex items-start">
+                <ul className="space-y-3 text-gray-700">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>
                       St. Mary's Regional Hospital, Grand Junction, CO
                     </span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Ashton Memorial, Ashton, ID</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Island Park Medical Clinic, Island Park, ID</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Madison Memorial Hospital, Rexburg, ID</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>St. Peter's Health, Helena, MT</span>
                   </li>
@@ -316,7 +230,6 @@ export default async function Home() {
                       className="object-contain"
                     />
                   ) : (
-                    // Fallback if map image not found
                     <div className="flex h-[300px] items-center justify-center rounded-lg bg-gray-100 p-8">
                       <p className="text-center text-gray-500">
                         Map image not available
@@ -328,30 +241,30 @@ export default async function Home() {
 
               {/* Right Column Locations */}
               <div className="mt-8 md:mt-0 md:w-1/4 md:pl-6">
-                <ul className="my-10 space-y-3 text-gray-700 md:my-0">
-                  <li className="my-10 flex items-start">
+                <ul className="space-y-3 text-gray-700">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>
                       Memorial Hospital of Sweetwater, Rock Springs, WY
                     </span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>St. John's Health, Jackson, WY</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Intermountain Deserts Region, NV</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Carson Tahoe Health, Carson City, NV</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Intermountain Deserts Region, UT</span>
                   </li>
-                  <li className="my-10 flex items-start">
+                  <li className="flex items-start py-2">
                     <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
                     <span>Ashley Regional Medical Center, Vernal, UT</span>
                   </li>
@@ -383,121 +296,19 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* Video Section */}
-        <VideoPlayer
-          videoId="Kieha1QED1U"
-          title="RCR Introduction"
-          imageName="rcr_wheat.png"
-        />
-
-        {/* Footer with Quick Links */}
-        <footer className="mt-0 bg-gray-100 py-12">
-          <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-              {/* Quick Links Column */}
-              <div>
-                <h2 className="font-body text-primary mb-6 text-2xl font-medium">
-                  Quick Links
-                </h2>
-                <ul className="space-y-4">
-                  <li>
-                    <Link
-                      href="/locations"
-                      className="hover:text-highlight flex items-center gap-2 text-gray-700 transition-colors"
-                    >
-                      <FaMapMarkerAlt className="text-primary" />
-                      <span>Locations</span>
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/toolbox"
-                      className="hover:text-highlight flex items-center gap-2 text-gray-700 transition-colors"
-                    >
-                      <FaToolbox className="text-primary" />
-                      <span>Toolbox Resources</span>
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/partnerships"
-                      className="hover:text-highlight flex items-center gap-2 text-gray-700 transition-colors"
-                    >
-                      <FaExternalLinkAlt className="text-primary" />
-                      <span>Partnership Opportunities</span>
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Contact Information Column */}
-              <div>
-                <h2 className="font-body text-primary mb-6 text-2xl font-medium">
-                  Contact Us
-                </h2>
-                <ul className="space-y-4">
-                  <li className="flex items-center gap-2">
-                    <FaEnvelope className="text-primary" />
-                    <Link
-                      href="mailto:contact@rcr.org"
-                      className="hover:text-highlight text-gray-700 transition-colors"
-                    >
-                      contact@rcr.org
-                    </Link>
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <FaPhone className="text-primary" />
-                    <Link
-                      href="tel:+18005551234"
-                      className="hover:text-highlight text-gray-700 transition-colors"
-                    >
-                      (800) 555-1234
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-
-              {/* About Column */}
-              <div>
-                <h2 className="font-body text-primary mb-6 text-2xl font-medium">
-                  About RCR
-                </h2>
-                <p className="mb-4 text-gray-700">
-                  Rural Connections to Research (RCR) is dedicated to expanding
-                  access to clinical trials and research opportunities for rural
-                  communities across the Mountain West.
-                </p>
-                <Link
-                  href="/about"
-                  className="text-primary hover:text-highlight inline-flex items-center gap-1 transition-colors"
-                >
-                  Learn more about our mission
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </Link>
-              </div>
-            </div>
-
-            <div className="mt-8 border-t border-gray-300 pt-8 text-center text-gray-600">
-              <p>
-                © {new Date().getFullYear()} Rural Connections to Research. All
-                rights reserved.
-              </p>
-            </div>
+        {/* 7. Video Section */}
+        <section className="">
+          <div className="container max-w-full">
+            <VideoPlayer
+              videoId="Kieha1QED1U"
+              title="RCR Introduction"
+              imageName="rcr_wheat.png"
+            />
           </div>
-        </footer>
-      </main>
+        </section>
+
+        {/* Footer is now moved to the layout component */}
+      </>
     );
   } catch (error) {
     const errorMessage =
@@ -505,11 +316,14 @@ export default async function Home() {
     console.error('Error in Home page:', errorMessage);
 
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
-          {process.env.NODE_ENV === 'development'
-            ? errorMessage
-            : 'Error loading homepage content'}
+      <div className="container mx-auto p-8">
+        <div className="rounded-lg bg-red-50 p-6 text-red-800">
+          <h2 className="mb-2 text-xl font-bold">Something Went Wrong</h2>
+          <p>
+            We encountered an error loading the page content. Please try again
+            later.
+          </p>
+          <p className="mt-4 text-sm text-red-600">{errorMessage}</p>
         </div>
       </div>
     );

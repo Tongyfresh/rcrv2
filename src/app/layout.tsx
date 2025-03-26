@@ -1,12 +1,52 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Navigation from '@/app/components/navigation';
+import { Inter, Roboto } from 'next/font/google';
+import Navigation from './components/navigation';
+import Footer from './components/footer';
 import { fetchDrupalData } from './utils/drupalFetcher';
-import { getDrupalImageUrl } from './utils/imageProcessor';
+import { getImageUrl } from './utils/contentProcessor';
 
+// Load fonts
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
+});
+
+const roboto = Roboto({
+  weight: ['400', '500', '700'],
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-roboto',
+});
+
+// Define base metadata
 export const metadata: Metadata = {
-  title: 'RCR',
-  description: 'Rural Connections to Research',
+  title: {
+    template: '%s | Rural Connections to Research',
+    default: 'Rural Connections to Research',
+  },
+  description:
+    'Connecting rural communities with clinical research opportunities across the Mountain West',
+  keywords: [
+    'rural healthcare',
+    'clinical research',
+    'mountain west',
+    'healthcare access',
+  ],
+  authors: [{ name: 'RCR Team' }],
+  viewport: 'width=device-width, initial-scale=1',
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://rcr-v2.vercel.app'
+  ),
 };
 
 export default async function RootLayout({
@@ -14,53 +54,73 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  let logoUrl = '';
+  // Get the logo for the navigation
+  const logoUrl = await fetchLogoUrl();
 
+  // Get footer content (could be moved to a separate component if needed)
+  const footerContent = {
+    contactEmail: 'contact@rcr.org',
+    contactPhone: '(800) 555-1234',
+  };
+
+  return (
+    <html lang="en" className={`${inter.variable} ${roboto.variable}`}>
+      <body className="font-body flex min-h-screen flex-col antialiased">
+        {/* Header with Navigation */}
+        <Navigation logoUrl={logoUrl} />
+
+        {/* Main content area */}
+        <main className="flex-grow">{children}</main>
+
+        {/* Footer */}
+        <Footer {...footerContent} />
+      </body>
+    </html>
+  );
+}
+
+/**
+ * Helper function to fetch logo URL from Drupal
+ */
+async function fetchLogoUrl(): Promise<string> {
   try {
+    console.log('Fetching logo for site layout...');
+
+    // Fetch logo from homepage data
     const homeData = await fetchDrupalData('node/home_page', {
-      fields: ['title', 'field_rcr_logo'],
+      fields: ['field_rcr_logo'],
       include: ['field_rcr_logo', 'field_rcr_logo.field_media_image'],
+      revalidate: 3600, // Cache for 1 hour
     });
 
     const baseURL =
       process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
 
     // Extract logo from homepage data
-    if (homeData?.data[0]?.relationships?.field_rcr_logo?.data?.id) {
-      const logoId = homeData.data[0].relationships.field_rcr_logo.data.id;
-      logoUrl = getDrupalImageUrl(homeData, logoId, baseURL) || '';
-      console.log('Layout fetched logo URL from homepage:', logoUrl);
-    } else {
-      logoUrl = '/images/rcr_logo.png';
+    if (homeData?.data) {
+      const entity = Array.isArray(homeData.data)
+        ? homeData.data[0]
+        : homeData.data;
+
+      if (entity?.relationships?.field_rcr_logo?.data) {
+        const logoData = entity.relationships.field_rcr_logo.data;
+        const logoId = Array.isArray(logoData) ? logoData[0]?.id : logoData?.id;
+
+        if (logoId) {
+          const logoUrl = getImageUrl(homeData, logoId, baseURL);
+
+          if (logoUrl) {
+            console.log('Layout fetched logo URL:', logoUrl);
+            return logoUrl;
+          }
+        }
+      }
     }
 
-    // Try without a name filter first
-    const logoData = await fetchDrupalData('media--image', {
-      fields: ['name', 'field_media_image'],
-      include: ['field_media_image'],
-      // No filter initially to see what's available
-    });
-
-    console.log(
-      'Media entities found:',
-      logoData.data.map(
-        (item: { attributes: { name: any } }) => item.attributes.name
-      )
-    );
-
-    // Then you can identify which one is your logo and use that specific ID
+    console.warn('Could not find logo in Drupal data, using fallback');
+    return '/images/rcr_logo.png'; // Fallback to static logo
   } catch (error) {
     console.error('Error fetching logo:', error);
-    // Fallback to a static image if API fails
-    logoUrl = '/images/rcr_logo.png';
+    return '/images/rcr_logo.png'; // Fallback to static logo on error
   }
-
-  return (
-    <html lang="en">
-      <body className="font-body">
-        <Navigation logoUrl={logoUrl} />
-        {children}
-      </body>
-    </html>
-  );
 }

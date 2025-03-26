@@ -27,7 +27,6 @@
   --text-shadow-sm: 1px 1px 2px rgba(0, 0, 0, 0.5);
   --text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
   --text-shadow-lg: 3px 3px 6px rgba(0, 0, 0, 0.7);
-  --animate-infinite-scroll: scroll 40s linear infinite;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,6 +35,7 @@
     --foreground: #ededed;
   }
 }
+
 @layer utilities {
   .text-shadow-sm {
     text-shadow: var(--text-shadow-sm);
@@ -46,19 +46,22 @@
   .text-shadow-lg {
     text-shadow: var(--text-shadow-lg);
   }
+  .pause-animation {
+    animation-play-state: paused;
+  }
 }
 
 @keyframes scroll {
   0% {
-    transform: translateX(0);
+    transform: translateX(0%);
   }
   100% {
-    transform: translateX(calc(-50% - 5rem));
+    transform: translateX(-100%);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: 'sofia-pro', sans-serif; /* Apply Sofia Pro globally */
+  font-family: 'sofia-pro', sans-serif;
 }
