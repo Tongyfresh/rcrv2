@@ -510,19 +510,227 @@ export async function fetchAboutPageData() {
       throw new Error('API URL not configured');
     }
 
-    // Using the existing fetchDrupalData function
-    const response = await fetchDrupalData('node/page', {
-      filter: {
-        drupal_internal__nid: 11, // Assuming 11 is the node ID for About page
+    // Construct the API URL for the about page
+    const apiUrl = `${process.env.NEXT_PUBLIC_DRUPAL_API_URL}/node/page?filter[drupal_internal__nid]=11&include=field_article_image,field_article_image.field_media_image`;
+
+    console.log('Fetching from:', apiUrl);
+
+    const response = await fetch(apiUrl, {
+      next: { revalidate: 3600 }, // Cache for 1 hour
+      headers: {
+        Accept: 'application/vnd.api+json',
       },
-      include: ['field_article_image', 'field_article_image.field_media_image'],
-      fields: ['title', 'body', 'field_article_image'],
     });
 
+    if (!response.ok) {
+      throw new Error(
+        `API returned ${response.status}: ${response.statusText}`
+      );
+    }
+
+    const data = await response.json();
     console.log('About page data fetched successfully');
-    return response;
+    return data;
   } catch (error) {
     console.error('Error fetching about page data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches Services page data from Drupal
+ */
+export async function fetchServicesPageData() {
+  try {
+    // Try with the correct content type - node/services
+    try {
+      const servicesResponse = await fetchDrupalData('node/services', {
+        fields: [
+          'title',
+          'body',
+          'field_hero_image',
+          'field_staggered_images',
+          'field_staggered_text',
+        ],
+        include: [
+          'field_hero_image',
+          'field_hero_image.field_media_image',
+          'field_staggered_images',
+          'field_staggered_images.field_media_image',
+        ],
+        revalidate: 3600,
+      });
+
+      if (servicesResponse?.data) {
+        return servicesResponse;
+      }
+    } catch (e) {
+      console.error(
+        'Error fetching node/services, trying with specific ID:',
+        e
+      );
+    }
+
+    // If node/services fails, try directly with node ID 13 as fallback
+    try {
+      const nodeResponse = await fetchDrupalData('node/page', {
+        filter: {
+          drupal_internal__nid: 13,
+        },
+        fields: ['title', 'body', 'field_article_image'],
+        include: [
+          'field_article_image',
+          'field_article_image.field_media_image',
+        ],
+        revalidate: 3600,
+      });
+
+      if (nodeResponse?.data) {
+        return nodeResponse;
+      }
+    } catch (e) {
+      console.error('Error fetching with node ID 13:', e);
+    }
+
+    // No content found, return empty data
+    return { data: [] };
+  } catch (error) {
+    console.error('Error fetching services page data:', error);
+    return { data: [] };
+  }
+}
+
+/**
+ * Generic function to fetch page data by path alias
+ * @param pathAlias The path alias to fetch (e.g., "/services", "/about")
+ * @param fallbackIds Array of node IDs to try if path alias fails
+ */
+export async function fetchPageByPath(
+  pathAlias: string,
+  fallbackIds: number[] = []
+) {
+  try {
+    console.log(`Fetching page data for path: ${pathAlias}`);
+
+    const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split(
+      '/jsonapi'
+    )[0]?.replace(/[/]+$/, '');
+    if (!baseUrl) {
+      throw new Error('API URL not configured');
+    }
+
+    // Ensure path alias starts with a slash
+    const formattedPath = pathAlias.startsWith('/')
+      ? pathAlias
+      : `/${pathAlias}`;
+
+    // Try to find by path alias first
+    const pathAliasUrl = `${process.env.NEXT_PUBLIC_DRUPAL_API_URL}/node/page?filter[path.alias]=${formattedPath}&include=field_article_image,field_article_image.field_media_image,field_staggered_images,field_staggered_images.field_media_image`;
+
+    console.log(`Fetching by path alias: ${formattedPath}`);
+
+    let response = await fetch(pathAliasUrl, {
+      next: { revalidate: 3600 },
+      headers: {
+        Accept: 'application/vnd.api+json',
+      },
+    });
+
+    console.log(`Path alias response status: ${response.status}`);
+
+    let data;
+    try {
+      data = await response.json();
+      console.log('Path alias response structure:', {
+        hasData: !!data?.data,
+        isArray: Array.isArray(data?.data),
+        length: Array.isArray(data?.data) ? data.data.length : 'n/a',
+      });
+    } catch (e) {
+      console.error('Failed to parse JSON from path alias response');
+      data = null;
+    }
+
+    // If we got empty results by path, try the fallback IDs
+    if (
+      !response.ok ||
+      !data?.data ||
+      (Array.isArray(data?.data) && data.data.length === 0)
+    ) {
+      console.log('Path alias fetch returned no results, trying specific IDs');
+
+      for (const nodeId of fallbackIds) {
+        const nodeUrl = `${process.env.NEXT_PUBLIC_DRUPAL_API_URL}/node/page?filter[drupal_internal__nid]=${nodeId}&include=field_article_image,field_article_image.field_media_image,field_staggered_images,field_staggered_images.field_media_image`;
+        console.log(`Trying node ID: ${nodeId}`);
+
+        response = await fetch(nodeUrl, {
+          next: { revalidate: 3600 },
+          headers: {
+            Accept: 'application/vnd.api+json',
+          },
+        });
+
+        console.log(`Node ID ${nodeId} response status: ${response.status}`);
+
+        if (response.ok) {
+          try {
+            data = await response.json();
+            console.log(`Node ID ${nodeId} response structure:`, {
+              hasData: !!data?.data,
+              isArray: Array.isArray(data?.data),
+              length: Array.isArray(data?.data) ? data.data.length : 'n/a',
+              firstItemId:
+                Array.isArray(data?.data) && data.data.length > 0
+                  ? data.data[0].id
+                  : data?.data?.id || 'none',
+              title:
+                Array.isArray(data?.data) && data.data.length > 0
+                  ? data.data[0].attributes?.title
+                  : data?.data?.attributes?.title || 'none',
+            });
+
+            // More tolerant check for valid data
+            const hasValidData =
+              !!data?.data &&
+              ((Array.isArray(data.data) && data.data.length > 0) ||
+                (!Array.isArray(data.data) && data.data.id));
+
+            if (hasValidData) {
+              console.log(`Found valid data with node ID ${nodeId}`);
+              break;
+            } else {
+              console.log(`No valid data in node ID ${nodeId} response`);
+            }
+          } catch (e) {
+            console.error(
+              `Failed to parse JSON from node ID ${nodeId} response`
+            );
+          }
+        }
+      }
+    }
+
+    // More tolerant check for final data validation
+    const hasValidData =
+      !!data?.data &&
+      ((Array.isArray(data.data) && data.data.length > 0) ||
+        (!Array.isArray(data.data) && data.data.id));
+
+    if (!hasValidData) {
+      console.log(
+        'WARNING: Final data check failed, returning anyway for inspection'
+      );
+      console.log('Raw data structure for debugging:', {
+        hasData: !!data?.data,
+        dataType: typeof data?.data,
+        isArray: Array.isArray(data?.data),
+        keys: data ? Object.keys(data) : [],
+      });
+    }
+
+    return data || { data: null };
+  } catch (error) {
+    console.error(`Error fetching page for path ${pathAlias}:`, error);
     throw error;
   }
 }

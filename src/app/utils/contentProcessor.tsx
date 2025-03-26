@@ -59,6 +59,11 @@ interface MediaItem {
   };
 }
 
+interface ImageReference {
+  id: string;
+  type: string;
+}
+
 /**
  * Process content with embedded images
  * Replaces image references in HTML content with proper URLs
@@ -517,4 +522,163 @@ export function processPageData(
     pageContent,
     heroImageUrl,
   };
+}
+
+/**
+ * Process the services page data from Drupal
+ * @param data The raw data from Drupal API
+ * @param baseUrl The base URL for resolving relative URLs
+ * @returns Processed data with essential fields extracted
+ */
+export function processServicesPageData(data: any, baseUrl?: string) {
+  // Initialize result with default values
+  const result = {
+    pageContent: null as any,
+    heroImageUrl: null as string | null,
+    staggeredImages: [] as string[],
+    staggeredText: [] as any[],
+  };
+
+  // If no data, return early
+  if (!data || !data.data) {
+    return result;
+  }
+
+  // Extract the page content
+  const pageContent = Array.isArray(data.data) ? data.data[0] : data.data;
+  if (!pageContent) {
+    return result;
+  }
+
+  result.pageContent = pageContent;
+
+  // Process include array if it exists
+  if (data.included && Array.isArray(data.included)) {
+    try {
+      // Extract hero image if available - try field_hero_image first
+      if (pageContent.relationships?.field_hero_image?.data) {
+        const mediaId = pageContent.relationships.field_hero_image.data.id;
+
+        const mediaEntity = data.included.find(
+          (item: any) => item.id === mediaId && item.type.includes('media')
+        );
+
+        if (mediaEntity?.relationships?.field_media_image?.data) {
+          const fileId = mediaEntity.relationships.field_media_image.data.id;
+
+          const fileEntity = data.included.find(
+            (item: any) => item.id === fileId && item.type === 'file--file'
+          );
+
+          if (fileEntity?.attributes?.uri?.url) {
+            const imageUrl = fileEntity.attributes.uri.url;
+            result.heroImageUrl = imageUrl.startsWith('/')
+              ? `${baseUrl}${imageUrl}`
+              : imageUrl;
+          }
+        }
+      }
+      // If not found, try field_article_image as fallback
+      else if (pageContent.relationships?.field_article_image?.data) {
+        const mediaId = pageContent.relationships.field_article_image.data.id;
+
+        const mediaEntity = data.included.find(
+          (item: any) => item.id === mediaId && item.type.includes('media')
+        );
+
+        if (mediaEntity?.relationships?.field_media_image?.data) {
+          const fileId = mediaEntity.relationships.field_media_image.data.id;
+
+          const fileEntity = data.included.find(
+            (item: any) => item.id === fileId && item.type === 'file--file'
+          );
+
+          if (fileEntity?.attributes?.uri?.url) {
+            const imageUrl = fileEntity.attributes.uri.url;
+            result.heroImageUrl = imageUrl.startsWith('/')
+              ? `${baseUrl}${imageUrl}`
+              : imageUrl;
+          }
+        }
+      }
+
+      // Extract staggered images
+      if (pageContent.relationships?.field_staggered_images?.data) {
+        // Handle both single and multiple image references
+        const imageRefs = Array.isArray(
+          pageContent.relationships.field_staggered_images.data
+        )
+          ? pageContent.relationships.field_staggered_images.data
+          : [pageContent.relationships.field_staggered_images.data];
+
+        for (const imageRef of imageRefs) {
+          const mediaId = imageRef.id;
+
+          const mediaEntity = data.included.find(
+            (item: any) => item.id === mediaId && item.type.includes('media')
+          );
+
+          if (mediaEntity?.relationships?.field_media_image?.data) {
+            const fileId = mediaEntity.relationships.field_media_image.data.id;
+
+            const fileEntity = data.included.find(
+              (item: any) => item.id === fileId && item.type === 'file--file'
+            );
+
+            if (fileEntity?.attributes?.uri?.url) {
+              const imageUrl = fileEntity.attributes.uri.url;
+              const fullUrl = imageUrl.startsWith('/')
+                ? `${baseUrl}${imageUrl}`
+                : imageUrl;
+
+              result.staggeredImages.push(fullUrl);
+            }
+          }
+        }
+      }
+
+      // Process staggered text if available
+      if (pageContent.attributes?.field_staggered_text) {
+        try {
+          // If it's a JSON string, parse it
+          if (typeof pageContent.attributes.field_staggered_text === 'string') {
+            try {
+              result.staggeredText = JSON.parse(
+                pageContent.attributes.field_staggered_text
+              );
+            } catch (jsonError) {
+              // If parsing fails, use as a single item
+              result.staggeredText = [
+                { description: pageContent.attributes.field_staggered_text },
+              ];
+            }
+          }
+          // If it's already an array, use directly
+          else if (Array.isArray(pageContent.attributes.field_staggered_text)) {
+            result.staggeredText = pageContent.attributes.field_staggered_text;
+          }
+          // If it's an object, wrap it in an array
+          else if (
+            typeof pageContent.attributes.field_staggered_text === 'object'
+          ) {
+            result.staggeredText = [
+              pageContent.attributes.field_staggered_text,
+            ];
+          }
+
+          // Ensure the result is an array
+          if (!Array.isArray(result.staggeredText)) {
+            result.staggeredText = [result.staggeredText];
+          }
+        } catch (parseError) {
+          console.error('Error processing staggered text:', parseError);
+          result.staggeredText = [];
+        }
+      }
+    } catch (error) {
+      console.error('Error processing services page includes:', error);
+    }
+  }
+
+  return result;
 }

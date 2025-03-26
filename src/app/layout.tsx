@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Inter, Roboto } from 'next/font/google';
 import Navigation from './components/navigation';
@@ -20,6 +20,12 @@ const roboto = Roboto({
   variable: '--font-roboto',
 });
 
+// Define viewport settings (moved from metadata)
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+};
+
 // Define base metadata
 export const metadata: Metadata = {
   title: {
@@ -35,7 +41,7 @@ export const metadata: Metadata = {
     'healthcare access',
   ],
   authors: [{ name: 'RCR Team' }],
-  viewport: 'width=device-width, initial-scale=1',
+
   robots: {
     index: true,
     follow: true,
