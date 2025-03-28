@@ -501,39 +501,38 @@ function mergeDataEntities(
  */
 export async function fetchAboutPageData() {
   try {
-    console.log('Fetching about page data...');
-
-    const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split(
-      '/jsonapi'
-    )[0]?.replace(/[/]+$/, '');
-    if (!baseUrl) {
-      throw new Error('API URL not configured');
+    if (!process.env.NEXT_PUBLIC_DRUPAL_API_URL) {
+      console.error('NEXT_PUBLIC_DRUPAL_API_URL is not defined');
+      throw new Error('API URL is not configured');
     }
 
-    // Construct the API URL for the about page
-    const apiUrl = `${process.env.NEXT_PUBLIC_DRUPAL_API_URL}/node/page?filter[drupal_internal__nid]=11&include=field_article_image,field_article_image.field_media_image`;
+    const url = `${process.env.NEXT_PUBLIC_DRUPAL_API_URL}/node/about?include=field_hero_image,field_hero_image.field_media_image,field_rcr_card_images,field_rcr_card_images.field_media_image`;
 
-    console.log('Fetching from:', apiUrl);
+    console.log('Fetching About page data from:', url);
 
-    const response = await fetch(apiUrl, {
-      next: { revalidate: 3600 }, // Cache for 1 hour
+    const response = await fetch(url, {
+      cache: 'no-store',
       headers: {
+        'Content-Type': 'application/vnd.api+json',
         Accept: 'application/vnd.api+json',
       },
     });
 
     if (!response.ok) {
-      throw new Error(
-        `API returned ${response.status}: ${response.statusText}`
-      );
+      console.error(`Failed to fetch about page data: ${response.status}`);
+      console.error('Response text:', await response.text());
+      throw new Error(`Failed to fetch about page data: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('About page data fetched successfully');
+    console.log(
+      'About page data fetched successfully. Included items:',
+      data.included?.length || 0
+    );
     return data;
   } catch (error) {
     console.error('Error fetching about page data:', error);
-    throw error;
+    return { data: [], included: [] };
   }
 }
 

@@ -40,6 +40,27 @@ export interface PartnerData {
   link: string;
 }
 
+export interface ImpactStat {
+  id: string;
+  number: string;
+  label: string;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  role: string;
+  bio: string;
+  image: string;
+}
+
+export interface AboutPageData {
+  pageContent: DrupalEntity | null;
+  heroImageUrl: string | null;
+  impactStats: ImpactStat[];
+  teamMembers: TeamMember[];
+}
+
 interface MediaItem {
   id: string;
   type: string;
@@ -94,8 +115,12 @@ export async function processBodyContent(
                 (item) => item.attributes.name === filename
               );
               if (mediaItem?.attributes?.uri?.url) {
-                const imageUrl = new URL(mediaItem.attributes.uri.url, baseURL)
+                let imageUrl = new URL(mediaItem.attributes.uri.url, baseURL)
                   .href;
+                // In your image URL handling code:
+                if (imageUrl && baseURL && imageUrl.startsWith('/')) {
+                  imageUrl = `${baseURL}${imageUrl}`;
+                }
                 $(img).attr('src', imageUrl);
               }
             } catch (error) {
@@ -313,16 +338,18 @@ export function getImageUrl(
     if (!fileEntity?.attributes?.uri?.url) return null;
 
     // Ensure URL starts correctly
-    const fileUrl = fileEntity.attributes.uri.url;
+    let fileUrl = fileEntity.attributes.uri.url;
+    // In your image URL handling code:
+    if (fileUrl && baseURL && fileUrl.startsWith('/')) {
+      fileUrl = `${baseURL}${fileUrl}`;
+    }
 
     // For debugging in development
     if (process.env.NODE_ENV !== 'production') {
-      console.log(
-        `Found image URL: ${baseURL}${fileUrl} for media ID: ${mediaId}`
-      );
+      console.log(`Found image URL: ${fileUrl} for media ID: ${mediaId}`);
     }
 
-    return `${baseURL}${fileUrl}`;
+    return fileUrl;
   } catch (error) {
     console.error(`Error extracting image URL for media ID ${mediaId}:`, error);
     return null;
@@ -352,7 +379,12 @@ function processCardData(
       homePage.attributes.field_rcr_card_description || [];
 
     return cardImageData.map((imageData, index) => {
-      const imageUrl = getImageUrl(data, imageData.id, baseURL);
+      let imageUrl = getImageUrl(data, imageData.id, baseURL);
+
+      // In your image URL handling code:
+      if (imageUrl && baseURL && imageUrl.startsWith('/')) {
+        imageUrl = `${baseURL}${imageUrl}`;
+      }
 
       // Find the media entity for additional data
       const mediaEntity = data.included?.find(
@@ -404,7 +436,12 @@ function processPartnerData(
       : [homePage.relationships[fieldName].data];
 
     return partnerLogoData.map((logoData) => {
-      const logoUrl = getImageUrl(data, logoData.id, baseURL);
+      let logoUrl = getImageUrl(data, logoData.id, baseURL);
+
+      // In your image URL handling code:
+      if (logoUrl && baseURL && logoUrl.startsWith('/')) {
+        logoUrl = `${baseURL}${logoUrl}`;
+      }
 
       // Find the media entity
       const mediaEntity = data.included?.find(
@@ -479,6 +516,7 @@ export function processPageData(
     baseUrl ||
     process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0]?.replace(
       /[/]+$/,
+
       ''
     );
 
@@ -508,10 +546,12 @@ export function processPageData(
 
       if (fileEntity?.attributes?.uri?.url) {
         // Check if it's a relative URL
-        const imageUrl = fileEntity.attributes.uri.url;
-        heroImageUrl = imageUrl.startsWith('/')
-          ? `${effectiveBaseUrl}${imageUrl}`
-          : imageUrl;
+        let imageUrl = fileEntity.attributes.uri.url;
+        // In your image URL handling code:
+        if (imageUrl && effectiveBaseUrl && imageUrl.startsWith('/')) {
+          imageUrl = `${effectiveBaseUrl}${imageUrl}`;
+        }
+        heroImageUrl = imageUrl;
 
         console.log('Found image URL:', heroImageUrl);
       }
@@ -571,10 +611,12 @@ export function processServicesPageData(data: any, baseUrl?: string) {
           );
 
           if (fileEntity?.attributes?.uri?.url) {
-            const imageUrl = fileEntity.attributes.uri.url;
-            result.heroImageUrl = imageUrl.startsWith('/')
-              ? `${baseUrl}${imageUrl}`
-              : imageUrl;
+            let imageUrl = fileEntity.attributes.uri.url;
+            // In your image URL handling code:
+            if (imageUrl && baseUrl && imageUrl.startsWith('/')) {
+              imageUrl = `${baseUrl}${imageUrl}`;
+            }
+            result.heroImageUrl = imageUrl;
           }
         }
       }
@@ -594,10 +636,12 @@ export function processServicesPageData(data: any, baseUrl?: string) {
           );
 
           if (fileEntity?.attributes?.uri?.url) {
-            const imageUrl = fileEntity.attributes.uri.url;
-            result.heroImageUrl = imageUrl.startsWith('/')
-              ? `${baseUrl}${imageUrl}`
-              : imageUrl;
+            let imageUrl = fileEntity.attributes.uri.url;
+            // In your image URL handling code:
+            if (imageUrl && baseUrl && imageUrl.startsWith('/')) {
+              imageUrl = `${baseUrl}${imageUrl}`;
+            }
+            result.heroImageUrl = imageUrl;
           }
         }
       }
@@ -626,12 +670,12 @@ export function processServicesPageData(data: any, baseUrl?: string) {
             );
 
             if (fileEntity?.attributes?.uri?.url) {
-              const imageUrl = fileEntity.attributes.uri.url;
-              const fullUrl = imageUrl.startsWith('/')
-                ? `${baseUrl}${imageUrl}`
-                : imageUrl;
-
-              result.staggeredImages.push(fullUrl);
+              let imageUrl = fileEntity.attributes.uri.url;
+              // In your image URL handling code:
+              if (imageUrl && baseUrl && imageUrl.startsWith('/')) {
+                imageUrl = `${baseUrl}${imageUrl}`;
+              }
+              result.staggeredImages.push(imageUrl);
             }
           }
         }
@@ -681,4 +725,219 @@ export function processServicesPageData(data: any, baseUrl?: string) {
   }
 
   return result;
+}
+
+/**
+ * Process the about page data from Drupal
+ * @param data The raw data from Drupal API
+ * @param baseUrl The base URL for resolving relative URLs
+ * @returns Processed data with essential fields extracted
+ */
+export function processAboutPageData(
+  data: DrupalResponse,
+  baseUrl: string
+): AboutPageData {
+  // Return default values if data is missing
+  if (!data?.data || (Array.isArray(data.data) && data.data.length === 0)) {
+    return {
+      pageContent: null,
+      heroImageUrl: null,
+      impactStats: [],
+      teamMembers: [],
+    };
+  }
+
+  // Use the first item if it's an array, or the data directly if not
+  const pageContent: DrupalEntity = Array.isArray(data.data)
+    ? data.data[0]
+    : data.data;
+
+  if (!pageContent) {
+    return {
+      pageContent: null,
+      heroImageUrl: null,
+      impactStats: [],
+      teamMembers: [],
+    };
+  }
+
+  // Process hero image
+  let heroImageUrl: string | null = null;
+  const heroImageRelationship =
+    pageContent.relationships?.field_hero_image?.data;
+
+  if (heroImageRelationship) {
+    const heroImageId = Array.isArray(heroImageRelationship)
+      ? heroImageRelationship[0]?.id
+      : heroImageRelationship.id;
+
+    if (heroImageId && data.included) {
+      // First look for the media entity
+      const mediaEntity = data.included.find(
+        (item) => item.id === heroImageId && item.type === 'media--image'
+      );
+
+      if (mediaEntity?.relationships?.field_media_image?.data) {
+        // Get the file ID from the media entity
+        const fileData = mediaEntity.relationships.field_media_image.data;
+        const fileId = Array.isArray(fileData) ? fileData[0]?.id : fileData.id;
+
+        if (fileId) {
+          // Find the file entity using the file ID
+          const fileEntity = data.included.find(
+            (item) => item.id === fileId && item.type === 'file--file'
+          );
+
+          if (fileEntity?.attributes?.uri?.url) {
+            const imageUrl = fileEntity.attributes.uri.url;
+            heroImageUrl = imageUrl.startsWith('/')
+              ? `${baseUrl}${imageUrl}`
+              : imageUrl;
+
+            console.log('Found hero image URL:', heroImageUrl);
+          }
+        }
+      }
+    }
+  }
+
+  // Process impact stats from field_impact_text
+  const impactStats: ImpactStat[] = [];
+
+  // Impact stat labels - match to the values we're getting
+  const impactLabels = [
+    'Rural Communities Served',
+    'Research Participants',
+    'Clinical Trials Supported',
+    'Research Phlebotomy Sites',
+  ];
+
+  if (
+    pageContent.attributes?.field_impact_text &&
+    Array.isArray(pageContent.attributes.field_impact_text)
+  ) {
+    pageContent.attributes.field_impact_text.forEach(
+      (stat: any, index: number) => {
+        // Get the number from the processed or value field
+        const numberValue = stat.processed || stat.value || '0';
+
+        impactStats.push({
+          id: `impact-${index}`,
+          number: numberValue,
+          label: impactLabels[index] || `Stat ${index + 1}`,
+        });
+      }
+    );
+  }
+
+  // Process team members from card data
+  const teamMembers: TeamMember[] = [];
+  const cardImagesRelationships =
+    pageContent.relationships?.field_rcr_card_images?.data;
+
+  // Early return if no card images
+  if (!cardImagesRelationships) {
+    return {
+      pageContent,
+      heroImageUrl,
+      impactStats,
+      teamMembers,
+    };
+  }
+
+  // Convert to array if it's a single item
+  const cardImagesRefs = Array.isArray(cardImagesRelationships)
+    ? cardImagesRelationships
+    : [cardImagesRelationships];
+
+  // Get titles and descriptions - fix HTML content handling
+  const cardTitlesRaw = pageContent.attributes?.field_rcr_card_title || [];
+  const cardDescriptionsRaw =
+    pageContent.attributes?.field_rcr_card_description || [];
+
+  // Clean up titles by removing HTML tags
+  const cardTitles = cardTitlesRaw.map((title: any) => {
+    if (title.processed) {
+      // Remove HTML tags but preserve the text
+      return title.processed.replace(/<\/?[^>]+(>|$)/g, '').trim();
+    }
+    return title.value ? title.value.replace(/<\/?[^>]+(>|$)/g, '').trim() : '';
+  });
+
+  // Extract first paragraph as role, keep full HTML for bio
+  const cardRoles: string[] = [];
+  const cardDescriptions = cardDescriptionsRaw.map(
+    (desc: any, index: number) => {
+      const htmlContent = desc.processed || desc.value || '';
+
+      // Extract the first paragraph as the role
+      const firstParagraphMatch = htmlContent.match(/<p>(.*?)<\/p>/);
+      if (firstParagraphMatch && firstParagraphMatch[1]) {
+        cardRoles[index] = firstParagraphMatch[1].trim();
+        // Return the full HTML as bio
+        return htmlContent;
+      }
+
+      cardRoles[index] = '';
+      return htmlContent;
+    }
+  );
+
+  // Process each team member card image
+  for (let index = 0; index < cardImagesRefs.length; index++) {
+    const cardRef = cardImagesRefs[index];
+    let imageUrl = '';
+
+    if (data.included) {
+      // First look for the media entity
+      const mediaEntity = data.included.find(
+        (item) => item.id === cardRef.id && item.type === 'media--image'
+      );
+
+      if (mediaEntity?.relationships?.field_media_image?.data) {
+        // Get the file ID
+        const fileData = mediaEntity.relationships.field_media_image.data;
+        const fileId = Array.isArray(fileData) ? fileData[0]?.id : fileData.id;
+
+        if (fileId) {
+          // Find the file entity
+          const fileEntity = data.included.find(
+            (item) => item.id === fileId && item.type === 'file--file'
+          );
+
+          if (fileEntity?.attributes?.uri?.url) {
+            const url = fileEntity.attributes.uri.url;
+            imageUrl = url.startsWith('/') ? `${baseUrl}${url}` : url;
+            console.log(
+              `Found team member image URL for member ${index}:`,
+              imageUrl
+            );
+          }
+        }
+      }
+    }
+
+    // Get corresponding title and description if available
+    const name =
+      index < cardTitles.length
+        ? cardTitles[index]
+        : `Team Member ${index + 1}`;
+    const role = index < cardRoles.length ? cardRoles[index] : '';
+    const bio = index < cardDescriptions.length ? cardDescriptions[index] : '';
+
+    teamMembers.push({
+      id: `team-${index}`,
+      name,
+      role,
+      bio,
+      image: imageUrl,
+    });
+  }
+
+  return {
+    pageContent,
+    heroImageUrl,
+    impactStats,
+    teamMembers,
+  };
 }

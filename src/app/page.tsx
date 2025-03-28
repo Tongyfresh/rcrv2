@@ -168,8 +168,50 @@ export default async function Home() {
                         sizes="(max-width: 768px) 100vw, 50vw"
                         className="object-cover"
                       />
-                      {/* Optional overlay for visual appeal */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                      {/* Enhanced overlay with gradient for better button visibility */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
+
+                      {/* Buttons container */}
+                      <div className="absolute right-0 bottom-6 left-0 flex flex-col items-center justify-center space-y-3 px-4 sm:bottom-8 sm:flex-row sm:space-y-0 sm:space-x-4">
+                        <Link
+                          href="/partners"
+                          className="text-primary hover:bg-primary/90 inline-flex w-full max-w-xs items-center justify-center rounded-lg border-2 border-white bg-white px-5 py-2.5 text-center font-medium shadow-lg transition-colors hover:border-white hover:text-white sm:w-auto sm:min-w-[180px]"
+                        >
+                          Our Partners
+                          <svg
+                            className="ml-2 h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </Link>
+                        <Link
+                          href="/consultation"
+                          className="bg-primary border-primary hover:text-primary inline-flex w-full max-w-xs items-center justify-center rounded-lg border-2 px-5 py-2.5 text-center font-medium text-white transition-colors hover:bg-white/90 sm:w-auto sm:min-w-[180px]"
+                        >
+                          Become an RCR Partner
+                          <svg
+                            className="ml-2 h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5l7 7-7 7"
+                            />
+                          </svg>
+                        </Link>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex h-64 min-h-[400px] items-center justify-center bg-gray-200">

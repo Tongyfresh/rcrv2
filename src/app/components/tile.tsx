@@ -9,10 +9,11 @@ interface TileProps {
 
 export default function Tile({ href, title, description, variant }: TileProps) {
   const bgColor = {
-    primary: 'bg-primary text-white hover:bg-primary/90',
-    secondary: 'bg-secondary text-white hover:bg-secondary/90',
-    highlight:
-      'bg-white text-primary border-2 border-primary hover:bg-primary/10',
+    primary:
+      'bg-primary text-white border-2 border-primary hover:bg-primary/70',
+    secondary:
+      'bg-secondary text-white border-2 border-secondary hover:bg-secondary/70',
+    highlight: 'bg-dark text-white border-2 border-dark hover:bg-dark/70',
   }[variant];
 
   return (

@@ -50,116 +50,93 @@ export default function LogoBar({
     return url;
   };
 
+  // Create a reusable logo component to avoid repetition
+  const LogoItem = ({
+    partner,
+    index,
+    isInMarquee = false,
+  }: {
+    partner: Partner;
+    index: string | number;
+    isInMarquee?: boolean;
+  }) => (
+    <div className="relative mx-6 my-2 inline-block h-25 w-60 flex-shrink-0">
+      <Link
+        href={partner.link || '#'}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block h-full w-full"
+        title={`Visit ${partner.name}`}
+        aria-label={`${partner.name} website`}
+      >
+        {partner.url ? (
+          <>
+            {!imageLoadState[`${partner.id}-${index}`] && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
+                <div className="h-12 w-12 rounded-full bg-gray-300" />
+              </div>
+            )}
+            <Image
+              src={getSafeUrl(partner.url)}
+              alt={`${partner.name} logo`}
+              fill
+              sizes="160px"
+              className={`object-contain transition-transform duration-300 hover:scale-110`}
+              onLoad={() => handleImageLoaded(`${partner.id}-${index}`)}
+              onError={() =>
+                handleImageError(`${partner.id}-${index}`, partner.name)
+              }
+              priority={false}
+            />
+          </>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
+            {partner.name || 'Partner Logo'}
+          </div>
+        )}
+      </Link>
+    </div>
+  );
+
   return (
-    <section className="bg-secondary/70 overflow-hidden py-10">
+    <section className="bg-secondary/50 overflow-hidden py-10">
       {title && (
-        <h2 className="text-primary mb-6 text-center text-3xl font-medium">
+        <h2 className="text-primary/70 text-shadow-sm mb-6 text-center text-3xl font-medium">
           {title}
         </h2>
       )}
       <div className="w-full">
         {scrolling ? (
-          <div className="relative overflow-hidden">
-            <div className="hover:pause-animation flex animate-[scroll_40s_linear_infinite] whitespace-nowrap will-change-transform">
-              {/* Duplicate partners multiple times to ensure coverage across the screen */}
-              {[...partners, ...partners, ...partners].map((partner, index) => (
-                <div
-                  key={`${partner.id}-${index}`}
-                  className="relative mx-4 inline-block h-20 w-40 flex-shrink-0 transition-transform hover:scale-110"
-                >
-                  <Link
-                    href={partner.link || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block h-full w-full"
-                    title={`Visit ${partner.name}`}
-                    aria-label={`${partner.name} website`}
-                  >
-                    {partner.url ? (
-                      <>
-                        {!imageLoadState[`${partner.id}-${index}`] && (
-                          <div className="absolute inset-0 flex animate-pulse items-center justify-center bg-gray-200">
-                            <div className="h-12 w-12 rounded-full bg-gray-300" />
-                          </div>
-                        )}
-                        <Image
-                          src={getSafeUrl(partner.url)}
-                          alt={`${partner.name} logo`}
-                          fill
-                          sizes="160px"
-                          className={`object-contain transition-opacity duration-300 ${
-                            imageLoadState[`${partner.id}-${index}`]
-                              ? 'opacity-100'
-                              : 'opacity-0'
-                          }`}
-                          onLoad={() =>
-                            handleImageLoaded(`${partner.id}-${index}`)
-                          }
-                          onError={() =>
-                            handleImageError(
-                              `${partner.id}-${index}`,
-                              partner.name
-                            )
-                          }
-                          priority={false}
-                        />
-                      </>
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
-                        {partner.name || 'Partner Logo'}
-                      </div>
-                    )}
-                  </Link>
-                </div>
+          // Marquee container
+          <div className="relative flex overflow-hidden">
+            {/* First marquee animation */}
+            <div className="animate-marquee flex whitespace-nowrap">
+              {partners.map((partner, index) => (
+                <LogoItem
+                  key={`${partner.id}-a-${index}`}
+                  partner={partner}
+                  index={`a-${index}`}
+                  isInMarquee={true}
+                />
+              ))}
+            </div>
+
+            {/* Second marquee animation - starts after the first one */}
+            <div className="animate-marquee2 absolute top-0 flex whitespace-nowrap">
+              {partners.map((partner, index) => (
+                <LogoItem
+                  key={`${partner.id}-b-${index}`}
+                  partner={partner}
+                  index={`b-${index}`}
+                  isInMarquee={true}
+                />
               ))}
             </div>
           </div>
         ) : (
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12">
-            {partners.map((partner) => (
-              <div
-                key={partner.id}
-                className="relative h-20 w-40 flex-shrink-0 transition-transform hover:scale-110"
-              >
-                <Link
-                  href={partner.link || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block h-full w-full"
-                  title={`Visit ${partner.name}`}
-                  aria-label={`${partner.name} website`}
-                >
-                  {partner.url ? (
-                    <>
-                      {!imageLoadState[partner.id] && (
-                        <div className="absolute inset-0 flex animate-pulse items-center justify-center bg-gray-200">
-                          <div className="h-12 w-12 rounded-full bg-gray-300" />
-                        </div>
-                      )}
-                      <Image
-                        src={getSafeUrl(partner.url)}
-                        alt={`${partner.name} logo`}
-                        fill
-                        sizes="160px"
-                        className={`object-contain transition-opacity duration-300 ${
-                          imageLoadState[partner.id]
-                            ? 'opacity-100'
-                            : 'opacity-0'
-                        }`}
-                        onLoad={() => handleImageLoaded(partner.id)}
-                        onError={() =>
-                          handleImageError(partner.id, partner.name)
-                        }
-                        priority={false}
-                      />
-                    </>
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
-                      {partner.name || 'Partner Logo'}
-                    </div>
-                  )}
-                </Link>
-              </div>
+            {partners.map((partner, index) => (
+              <LogoItem key={partner.id} partner={partner} index={index} />
             ))}
           </div>
         )}
