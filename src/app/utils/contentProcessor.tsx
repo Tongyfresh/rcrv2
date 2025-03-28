@@ -23,6 +23,9 @@ export interface ProcessedHomeData {
   cards: CardData[];
   cardTitle: string;
   partners: PartnerData[];
+  mapLocationsLeft: string;
+  mapLocationsRight: string;
+  whyRcrContent: string; // Added field for "Why RCR?" content
 }
 
 export interface CardData {
@@ -143,6 +146,86 @@ export async function processBodyContent(
 }
 
 /**
+ * Process embedded media to make them responsive
+ */
+export function processEmbeddedMedia(html: string): string {
+  if (!html) return '';
+
+  const $ = cheerio.load(html);
+
+  // Make iframes responsive
+  $('iframe').each((_, el) => {
+    const $iframe = $(el);
+
+    // Create a responsive wrapper
+    $iframe.wrap(
+      '<div class="relative pb-[56.25%] h-0 overflow-hidden max-w-full"></div>'
+    );
+
+    // Style the iframe for responsiveness
+    $iframe.addClass('absolute top-0 left-0 w-full h-full');
+  });
+
+  return $.html();
+}
+
+/**
+ * Clean up HTML output from Drupal Views
+ */
+export function cleanDrupalViewsOutput(html: string): string {
+  const $ = cheerio.load(html);
+
+  // Remove unnecessary wrappers and classes
+  $('.views-row').unwrap();
+  $('.views-field').each((_, el) => {
+    const $field = $(el);
+    const content = $field.find('.field-content').html();
+    if (content) {
+      $field.html(content);
+    }
+    $field.removeAttr('class');
+  });
+
+  return $.html();
+}
+
+/**
+ * Transform Drupal-specific HTML structures to work better with your design
+ */
+export function transformDrupalHTML(html: string): string {
+  if (!html) return '';
+
+  const $ = cheerio.load(html);
+
+  // Transform Drupal image alignment classes
+  $('.align-left').addClass('float-left mr-4 mb-2').removeClass('align-left');
+  $('.align-right')
+    .addClass('float-right ml-4 mb-2')
+    .removeClass('align-right');
+  $('.align-center').addClass('mx-auto block my-4').removeClass('align-center');
+
+  // Convert Drupal file links to more user-friendly format
+  $('a[href$=".pdf"], a[href$=".doc"], a[href$=".docx"]').each((_, el) => {
+    const $link = $(el);
+    const href = $link.attr('href');
+    const fileType = href?.split('.').pop()?.toUpperCase() || '';
+
+    // Add file icon and type information
+    $link.addClass(
+      'inline-flex items-center px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded'
+    );
+    $link.html(`
+      <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+      </svg>
+      ${$link.text()} <span class="ml-1 text-xs text-gray-500">(${fileType})</span>
+    `);
+  });
+
+  return $.html();
+}
+
+/**
  * Helper function to safely extract data from nested objects
  */
 export function safelyGetField(
@@ -193,11 +276,95 @@ export function getTextFromDrupalField(field: any): string {
 }
 
 /**
+ * Extracts the first paragraph from HTML content for use as a summary
+ */
+export function extractSummary(html: string, maxLength = 160): string {
+  if (!html) return '';
+
+  const $ = cheerio.load(html);
+  let summary = '';
+
+  // Try to find the first paragraph
+  const firstParagraph = $('p').first().text();
+  if (firstParagraph) {
+    summary = firstParagraph;
+  } else {
+    // Fallback to any text content
+    summary = $.text();
+  }
+
+  // Truncate if needed
+  if (summary.length > maxLength) {
+    summary = summary.substring(0, maxLength).trim() + '...';
+  }
+
+  return summary;
+}
+
+/**
+ * Generates a clean excerpt from HTML content
+ */
+export function generateExcerpt(html: string, maxLength: number = 120): string {
+  const $ = cheerio.load(html);
+
+  // Remove any unwanted elements
+  $('script, style, iframe').remove();
+
+  // Get text and clean it up
+  let text = $.text().replace(/\s+/g, ' ').trim();
+
+  // Truncate and add ellipsis if needed
+  if (text.length > maxLength) {
+    text = text.substring(0, maxLength).trim() + '...';
+  }
+
+  return text;
+}
+
+/**
+ * Extract structured data like tables from HTML content
+ */
+export function extractTableData(html: string): any[] {
+  const $ = cheerio.load(html);
+  const tables: any[] = [];
+
+  $('table').each((tableIndex, tableEl) => {
+    const $table = $(tableEl);
+    const tableData: any = {
+      headers: [],
+      rows: [],
+    };
+
+    // Extract headers
+    $table.find('thead tr th').each((_, headerEl) => {
+      tableData.headers.push($(headerEl).text().trim());
+    });
+
+    // Extract rows
+    $table.find('tbody tr').each((_, rowEl) => {
+      const row: string[] = [];
+      $(rowEl)
+        .find('td')
+        .each((_, cellEl) => {
+          row.push($(cellEl).text().trim());
+        });
+      tableData.rows.push(row);
+    });
+
+    tables.push(tableData);
+  });
+
+  return tables;
+}
+
+/**
  * Main function to process homepage data from Drupal
  */
-export function processHomePageData(data: DrupalResponse): ProcessedHomeData {
+export function processHomePageData(data: any, baseUrl?: string): any {
   const baseURL =
-    process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] || '';
+    baseUrl ||
+    process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] ||
+    '';
 
   // Return default values if data is missing
   if (!data?.data || (Array.isArray(data.data) && data.data.length === 0)) {
@@ -209,6 +376,9 @@ export function processHomePageData(data: DrupalResponse): ProcessedHomeData {
       cards: [],
       cardTitle: 'Resources',
       partners: [],
+      mapLocationsLeft: '',
+      mapLocationsRight: '',
+      whyRcrContent: '',
     };
   }
 
@@ -269,6 +439,102 @@ export function processHomePageData(data: DrupalResponse): ProcessedHomeData {
     partners = [];
   }
 
+  // Safely extract map location text fields with fallback to empty string
+  let mapLocationsLeft = '';
+  let mapLocationsRight = '';
+
+  // Check if these fields exist and are properly formatted
+  if (homePage?.attributes) {
+    // For field_map_text_left
+    if (homePage.attributes.field_map_text_left?.processed) {
+      // Use cheerio to parse HTML
+      const $ = cheerio.load(homePage.attributes.field_map_text_left.processed);
+      // Extract text from each paragraph
+      const locations: string[] = [];
+      $('p').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text) locations.push(text);
+      });
+      mapLocationsLeft = locations.join('\n');
+    }
+
+    // For field_map_text_right
+    if (homePage.attributes.field_map_text_right?.processed) {
+      // Use cheerio to parse HTML
+      const $ = cheerio.load(
+        homePage.attributes.field_map_text_right.processed
+      );
+      // Extract text from each paragraph
+      const locations: string[] = [];
+      $('p').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text) locations.push(text);
+      });
+      mapLocationsRight = locations.join('\n');
+    }
+  }
+
+  // Process "Why RCR?" section content
+  let whyRcrContent = '';
+
+  if (homePage?.attributes) {
+    // Check different possible field formats
+    if (homePage.attributes.field_why_rcr_description) {
+      if (typeof homePage.attributes.field_why_rcr_description === 'string') {
+        whyRcrContent = homePage.attributes.field_why_rcr_description;
+      } else if (homePage.attributes.field_why_rcr_description.value) {
+        whyRcrContent = homePage.attributes.field_why_rcr_description.value;
+      } else if (homePage.attributes.field_why_rcr_description.processed) {
+        whyRcrContent = homePage.attributes.field_why_rcr_description.processed;
+      }
+    }
+
+    // If the field is missing entirely, check for a fallback field
+    if (!whyRcrContent && homePage.attributes.field_why_rcr) {
+      if (typeof homePage.attributes.field_why_rcr === 'string') {
+        whyRcrContent = homePage.attributes.field_why_rcr;
+      } else if (homePage.attributes.field_why_rcr.value) {
+        whyRcrContent = homePage.attributes.field_why_rcr.value;
+      } else if (homePage.attributes.field_why_rcr.processed) {
+        whyRcrContent = homePage.attributes.field_why_rcr.processed;
+      }
+    }
+
+    // As a last resort, check if it's in body field or another location
+    if (!whyRcrContent && homePage.attributes.field_section_content) {
+      // Assuming "Why RCR?" might be in a sections array
+      const sections = Array.isArray(homePage.attributes.field_section_content)
+        ? homePage.attributes.field_section_content
+        : [homePage.attributes.field_section_content];
+
+      // Look for a section with "why rcr" in the title
+      const whyRcrSection = sections.find((section: any) => {
+        const title = section?.field_section_title || '';
+        return (
+          typeof title === 'string' &&
+          title.toLowerCase().includes('why') &&
+          title.toLowerCase().includes('rcr')
+        );
+      });
+
+      if (whyRcrSection?.field_section_text) {
+        if (typeof whyRcrSection.field_section_text === 'string') {
+          whyRcrContent = whyRcrSection.field_section_text;
+        } else if (whyRcrSection.field_section_text.processed) {
+          whyRcrContent = whyRcrSection.field_section_text.processed;
+        }
+      }
+    }
+  }
+
+  // Add debugging to see what's available
+  console.log(
+    'Why RCR content found:',
+    !!whyRcrContent,
+    'Field exists:',
+    !!homePage?.attributes?.field_why_rcr_description
+  );
+
   return {
     homePage,
     heroImageUrl,
@@ -277,6 +543,9 @@ export function processHomePageData(data: DrupalResponse): ProcessedHomeData {
     cards,
     cardTitle,
     partners,
+    mapLocationsLeft,
+    mapLocationsRight,
+    whyRcrContent,
   };
 }
 

@@ -39,6 +39,9 @@ export default async function Home() {
       cards,
       cardTitle,
       partners,
+      mapLocationsLeft,
+      mapLocationsRight,
+      whyRcrContent, // Extract this new field
     } = processHomePageData(homeData);
 
     if (!homePage) {
@@ -142,17 +145,31 @@ export default async function Home() {
                     Why RCR?
                   </h2>
                   <div className="prose prose-lg mb-8 max-w-none text-gray-700">
-                    {homePage.attributes?.field_why_rcr_description ? (
+                    {whyRcrContent ? (
                       <RichTextContent
-                        content={homePage.attributes.field_why_rcr_description}
+                        content={whyRcrContent}
                         className="prose prose-lg"
                       />
                     ) : (
-                      <p>
-                        Join us in our mission to connect rural communities with
-                        clinical research. We are bringing research closer to
-                        home through strong partnerships and expanded access.
-                      </p>
+                      <>
+                        <p>
+                          Rural Connections to Research (RCR) bridges the gap
+                          between rural communities and clinical research
+                          opportunities across the Mountain West.
+                        </p>
+                        <p>
+                          By connecting rural healthcare providers with academic
+                          research centers, we bring cutting-edge clinical
+                          trials closer to home for rural residents, ensuring
+                          equitable access to innovative treatments.
+                        </p>
+                        <p>
+                          Join us in our mission to connect rural communities
+                          with clinical research. We are bringing research
+                          closer to home through strong partnerships and
+                          expanded access.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
@@ -235,28 +252,46 @@ export default async function Home() {
               {/* Left Column Locations */}
               <div className="mb-8 md:mb-0 md:w-1/4 md:pr-6">
                 <ul className="space-y-3 text-gray-700">
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>
-                      St. Mary's Regional Hospital, Grand Junction, CO
-                    </span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Ashton Memorial, Ashton, ID</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Island Park Medical Clinic, Island Park, ID</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Madison Memorial Hospital, Rexburg, ID</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>St. Peter's Health, Helena, MT</span>
-                  </li>
+                  {typeof mapLocationsLeft === 'string' &&
+                  mapLocationsLeft.trim() ? (
+                    mapLocationsLeft
+                      .split('\n')
+                      .filter((line: string) => line.trim() !== '')
+                      .map((location: string, index: number) => (
+                        <li
+                          key={`left-location-${index}`}
+                          className="flex items-start py-2"
+                        >
+                          <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                          <span>{location.trim()}</span>
+                        </li>
+                      ))
+                  ) : (
+                    <>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>
+                          St. Mary's Regional Hospital, Grand Junction, CO
+                        </span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Ashton Memorial, Ashton, ID</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Island Park Medical Clinic, Island Park, ID</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Madison Memorial Hospital, Rexburg, ID</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>St. Peter's Health, Helena, MT</span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
 
@@ -284,32 +319,49 @@ export default async function Home() {
               {/* Right Column Locations */}
               <div className="mt-8 md:mt-0 md:w-1/4 md:pl-6">
                 <ul className="space-y-3 text-gray-700">
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>
-                      Memorial Hospital of Sweetwater, Rock Springs, WY
-                    </span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>St. John's Health, Jackson, WY</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Intermountain Deserts Region, NV</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Carson Tahoe Health, Carson City, NV</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Intermountain Deserts Region, UT</span>
-                  </li>
-                  <li className="flex items-start py-2">
-                    <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                    <span>Ashley Regional Medical Center, Vernal, UT</span>
-                  </li>
+                  {mapLocationsRight ? (
+                    mapLocationsRight
+                      .split('\n')
+                      .filter((line: string) => line.trim() !== '')
+                      .map((location: string, index: number) => (
+                        <li
+                          key={`right-location-${index}`}
+                          className="flex items-start py-2"
+                        >
+                          <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                          <span>{location.trim()}</span>
+                        </li>
+                      ))
+                  ) : (
+                    <>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>
+                          Memorial Hospital of Sweetwater, Rock Springs, WY
+                        </span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>St. John's Health, Jackson, WY</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Intermountain Deserts Region, NV</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Carson Tahoe Health, Carson City, NV</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Intermountain Deserts Region, UT</span>
+                      </li>
+                      <li className="flex items-start py-2">
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>Ashley Regional Medical Center, Vernal, UT</span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
             </div>

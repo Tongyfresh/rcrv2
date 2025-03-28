@@ -17,6 +17,7 @@ export default function VideoPlayer({
   const [isPlaying, setIsPlaying] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isHovering, setIsHovering] = useState(false);
 
   useEffect(() => {
     const loadThumbnail = async () => {
@@ -91,8 +92,22 @@ export default function VideoPlayer({
         </h2>
         <div
           id="video-container"
-          className="group relative w-full overflow-hidden rounded-lg bg-black/5 pb-[56.25%]"
+          className="group relative w-full overflow-hidden rounded-lg bg-black/5 pb-[56.25%] shadow-xl"
+          onMouseEnter={() => setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
         >
+          {/* Stylish diagonal gradient overlay */}
+          {!isPlaying && (
+            <div
+              className="absolute inset-0 z-10 transition-opacity duration-300"
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.7) 100%)',
+                opacity: isHovering ? '0.7' : '0.5',
+              }}
+            />
+          )}
+
           {!isPlaying ? (
             <div className="absolute inset-0">
               {thumbnailUrl && (
@@ -107,19 +122,27 @@ export default function VideoPlayer({
                   />
                 </div>
               )}
+
+              {/* Enhanced Play Button */}
               <button
                 onClick={handlePlay}
-                className="group absolute inset-0 flex h-full w-full items-center justify-center"
+                className="group absolute inset-0 z-20 flex h-full w-full items-center justify-center"
                 aria-label="Play video"
               >
-                <div className="relative inset-0 z-10 flex h-20 w-20 items-center justify-center rounded-full bg-white/70 shadow-lg transition-transform group-hover:scale-110 hover:shadow-xl">
-                  <svg
-                    className="text-primary/70 h-10 w-10 translate-x-1 transform"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
+                <div
+                  className={`bg-primary relative flex items-center justify-center rounded-full shadow-2xl transition-all duration-300 ease-in-out ${isHovering ? 'h-24 w-24 scale-110' : 'h-20 w-20'} `}
+                >
+                  <div className="absolute inset-0 rounded-full bg-white opacity-20 blur-sm" />
+
+                  {/* Pulsing effect ring */}
+                  <div
+                    className={`absolute -inset-2 rounded-full border-4 border-white/30 transition-all duration-700 ease-in-out ${isHovering ? 'animate-ping opacity-50' : 'opacity-0'} `}
+                  />
+
+                  {/* Play triangle */}
+                  <div
+                    className={`relative z-10 ml-1 h-0 w-0 border-t-[12px] border-b-[12px] border-l-[18px] border-t-transparent border-b-transparent border-l-white transition-all duration-300 ${isHovering ? 'scale-110' : ''} `}
+                  />
                 </div>
               </button>
             </div>
