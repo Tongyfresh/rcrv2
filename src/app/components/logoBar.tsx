@@ -60,7 +60,7 @@ export default function LogoBar({
     index: string | number;
     isInMarquee?: boolean;
   }) => (
-    <div className="relative mx-6 my-2 inline-block h-25 w-60 flex-shrink-0">
+    <div className="mx-6 my-2 inline-block h-25 w-60 flex-shrink-0">
       <Link
         href={partner.link || '#'}
         target="_blank"
@@ -70,7 +70,7 @@ export default function LogoBar({
         aria-label={`${partner.name} website`}
       >
         {partner.url ? (
-          <>
+          <div className="relative h-full w-full">
             {!imageLoadState[`${partner.id}-${index}`] && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-200">
                 <div className="h-12 w-12 rounded-full bg-gray-300" />
@@ -86,9 +86,9 @@ export default function LogoBar({
               onError={() =>
                 handleImageError(`${partner.id}-${index}`, partner.name)
               }
-              priority={false}
+              priority={index === 0 || index === 'a-0' || index === 'b-0'}
             />
-          </>
+          </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center rounded bg-gray-100 text-xs text-gray-500">
             {partner.name || 'Partner Logo'}

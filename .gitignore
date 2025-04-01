@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+*.lcov
+.nyc_output
+test-report.*
 
 # next.js
 /.next/
@@ -39,3 +42,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jest
+jest.config.js.map
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+protocol.md
+ACTION_PLAN.md

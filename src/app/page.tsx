@@ -396,7 +396,7 @@ export default async function Home() {
             <VideoPlayer
               videoId="Kieha1QED1U"
               title="RCR Introduction"
-              imageName="rcr_wheat.png"
+              imageName="2025-03/rcr_wheat.png"
             />
           </div>
         </section>

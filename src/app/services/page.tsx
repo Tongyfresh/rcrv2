@@ -1,9 +1,12 @@
-import { Metadata } from 'next';
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { RichTextContent } from '@/app/utils/richTextContent';
 import { fetchServicesPageData } from '@/app/utils/drupalFetcher';
 import { processServicesPageData } from '@/app/utils/contentProcessor';
+import { ensureAbsoluteUrl, getFallbackImage } from '@/app/utils/urlHelper';
 
 // Define interfaces for type safety
 interface ServiceOffering {
@@ -91,22 +94,6 @@ const SERVICE_ICONS = {
   ),
 };
 
-// Generate metadata for the page
-export function generateMetadata(): Metadata {
-  return {
-    title: 'Services - Rural Connections to Research',
-    description:
-      'Explore the range of services offered by Rural Connections to Research to support clinical trials in rural communities.',
-    keywords:
-      'rural healthcare services, clinical trial services, research phlebotomy, virtual trial services',
-    openGraph: {
-      title: 'Services - Rural Connections to Research',
-      description: 'Supporting clinical trials in rural communities',
-      images: ['/images/rcr_logo.png'],
-    },
-  };
-}
-
 // Define type for Drupal API response content
 interface DrupalNode {
   id: string;
@@ -139,173 +126,30 @@ interface ServicesPageData {
   staggeredText: any[];
 }
 
-export default async function Services() {
-  // Define hardcoded service offerings
-  const serviceOfferings: ServiceOffering[] = [
-    {
-      title: 'Research Phlebotomy Collective',
-      description:
-        'Our network of rural phlebotomy sites allows study participants to complete blood draws locally, without traveling to distant academic centers.',
-      icon: 'phlebotomy',
-      linkHref: '/research_sites',
-      linkText: 'Find a location',
-    },
-    {
-      title: 'Virtual Trial Support',
-      description:
-        'We provide technology and support for participants to complete study visits from home, with remote monitoring and telehealth capabilities.',
-      icon: 'virtual',
-      linkHref: '/toolbox',
-      linkText: 'Learn more',
-    },
-    {
-      title: 'Investigator Consultation',
-      description:
-        'We offer consultation services for researchers looking to expand their studies to rural areas, with expertise in recruitment and compliance.',
-      icon: 'consultation',
-      linkHref: '/consultation',
-      linkText: 'Schedule a consultation',
-    },
-    {
-      title: 'Community Engagement',
-      description:
-        'We build relationships with rural healthcare providers and communities to increase awareness and participation in clinical trials.',
-      icon: 'community',
-      linkHref: '/about',
-      linkText: 'Our approach',
-    },
-  ];
+export default function Services() {
+  // State for tracking image load failures
+  const [heroImageError, setHeroImageError] = useState(false);
+  const [serviceImageErrors, setServiceImageErrors] = useState<{
+    [key: string]: boolean;
+  }>({});
 
-  // Define detailed service descriptions for the staggered layout
-  const detailedServices: DetailedService[] = [
-    {
-      title: 'Research Phlebotomy Collective',
-      description: `Our Research Phlebotomy Collective connects rural participants with convenient local phlebotomy sites. This network eliminates the need for long-distance travel to research centers, making participation in clinical trials more accessible.
-      
-      Participants can have their blood drawn at a facility near their home, with samples properly processed and shipped to the study team. This approach not only increases participation rates but also improves retention by reducing participant burden.`,
-      icon: 'phlebotomy',
-      linkHref: '/research_sites',
-      linkText: 'Find a location near you',
-    },
-    {
-      title: 'Virtual Trial Support',
-      description: `Our comprehensive virtual trial platform enables participants to complete many study visits remotely. Through secure video conferencing, electronic consent processes, and remote monitoring tools, we're reducing barriers to participation.
-      
-      Our team provides technical support to both participants and researchers, ensuring a seamless experience. We can help with study design, implementation of virtual visits, and training for both staff and participants on using virtual research tools.`,
-      icon: 'virtual',
-      linkHref: '/toolbox',
-      linkText: 'Explore our virtual toolbox',
-    },
-    {
-      title: 'Investigator Consultation',
-      description: `Expanding clinical trials to rural areas requires specialized knowledge and experience. Our consultation services provide researchers with guidance on study design, recruitment strategies, regulatory considerations, and operational logistics.
-      
-      We work with investigators to adapt their protocols for rural implementation, helping them navigate challenges related to distance, technology limitations, and unique community needs. Our goal is to ensure that rural participation doesn't compromise study integrity or data quality.`,
-      icon: 'consultation',
-      linkHref: '/consultation',
-      linkText: 'Schedule a no-cost consultation',
-    },
-  ];
+  // Get server data - fetch happens in useServicesData
+  const {
+    serviceOfferings,
+    detailedServices,
+    pageTitle,
+    heroImageUrl,
+    showApiError,
+    staggeredImages,
+  } = useServicesData();
 
-  // Variables to store dynamic content when available
-  let pageContent: DrupalNode | null = null;
-  let heroImageUrl: string | null = null;
-  let pageTitle = 'Our Services';
-  let pageBody = '';
-  let staggeredImages: string[] = [];
-  let staggeredText: any[] = [];
-  let showApiError = false;
-
-  // Try to fetch and process CMS data, but don't let failure prevent page rendering
-  try {
-    const servicesData = await fetchServicesPageData();
-    const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split(
-      '/jsonapi'
-    )[0]?.replace(/[/]+$/, '');
-
-    if (servicesData?.data) {
-      // Process the data
-      const result = processServicesPageData(servicesData, baseUrl);
-
-      // If we successfully got content, use it
-      if (result.pageContent) {
-        pageContent = result.pageContent;
-        heroImageUrl = result.heroImageUrl;
-        staggeredImages = result.staggeredImages;
-        staggeredText = result.staggeredText;
-
-        // Update title and body if available
-        if (pageContent && pageContent.attributes?.title) {
-          pageTitle = pageContent.attributes.title;
-        }
-
-        if (pageContent && pageContent.attributes?.body) {
-          if (typeof pageContent.attributes.body === 'object') {
-            pageBody =
-              pageContent.attributes.body.value ||
-              pageContent.attributes.body.processed ||
-              '';
-          } else if (typeof pageContent.attributes.body === 'string') {
-            pageBody = pageContent.attributes.body;
-          }
-        }
-
-        // Apply staggered text to detailed services
-        if (staggeredText.length > 0) {
-          staggeredText.forEach((item, index) => {
-            if (index < detailedServices.length) {
-              // Update descriptions from various possible source fields
-              if (item.description) {
-                detailedServices[index].description = item.description;
-              } else if (item.text) {
-                detailedServices[index].description = item.text;
-              } else if (item.value) {
-                detailedServices[index].description = item.value;
-              } else if (typeof item === 'string') {
-                detailedServices[index].description = item;
-              }
-
-              // Update other fields if available
-              if (item.title) {
-                detailedServices[index].title = item.title;
-              }
-
-              if (item.linkHref) {
-                detailedServices[index].linkHref = item.linkHref;
-              } else if (item.link && typeof item.link === 'string') {
-                detailedServices[index].linkHref = item.link;
-              }
-
-              if (item.linkText) {
-                detailedServices[index].linkText = item.linkText;
-              } else if (item.link_text) {
-                detailedServices[index].linkText = item.link_text;
-              }
-            }
-          });
-        }
-
-        // Apply staggered images to detailed services
-        if (staggeredImages.length > 0) {
-          staggeredImages.forEach((imageUrl, index) => {
-            if (index < detailedServices.length) {
-              detailedServices[index].image = imageUrl;
-            }
-          });
-        }
-      } else {
-        showApiError = true;
-      }
-    } else {
-      showApiError = true;
-    }
-  } catch (error) {
-    console.error(
-      'Error loading services page:',
-      error instanceof Error ? error.message : 'Unknown error'
-    );
-    showApiError = true;
-  }
+  // Handler for service image errors
+  const handleServiceImageError = (index: number) => {
+    setServiceImageErrors((prev) => ({
+      ...prev,
+      [index]: true,
+    }));
+  };
 
   return (
     <>
@@ -324,43 +168,35 @@ export default async function Services() {
       )}
 
       {/* Hero Section with Title */}
-      {heroImageUrl ? (
-        <div className="relative h-[300px] w-full overflow-hidden md:h-[300px]">
-          <Image
-            src={heroImageUrl}
-            alt={`${pageTitle} Hero Image`}
-            fill
-            priority
-            sizes="100vw"
-            className="object-cover"
-            style={{ objectPosition: 'center 10%' }}
-          />
-          {/* Gradient overlay */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent/50 via-transparent/25 to-white" />
-          {/* Content overlay */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-shadow-lg max-w-4xl p-8 text-center text-gray-100">
-              <h1 className="font-title mb-6 text-4xl font-bold md:text-6xl">
-                {pageTitle}
-              </h1>
-            </div>
-          </div>
-        </div>
-      ) : (
-        // Fallback hero when no image is available
-        <div className="bg-primary/10 py-20">
-          <div className="container mx-auto px-4">
-            <h1 className="font-title text-primary mb-6 text-center text-4xl font-bold md:text-6xl">
+      <div className="relative h-[300px] w-full overflow-hidden md:h-[300px]">
+        <Image
+          src={
+            heroImageError
+              ? getFallbackImage('hero')
+              : heroImageUrl || getFallbackImage('hero')
+          }
+          alt={`${pageTitle} Hero Image`}
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+          style={{ objectPosition: 'center 10%' }}
+          onError={() => {
+            console.error('Failed to load hero image:', heroImageUrl);
+            setHeroImageError(true);
+          }}
+        />
+        {/* Gradient overlay */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-transparent/50 via-transparent/25 to-white" />
+        {/* Content overlay */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-shadow-lg max-w-4xl p-8 text-center text-gray-100">
+            <h1 className="font-title mb-6 text-4xl font-bold md:text-6xl">
               {pageTitle}
             </h1>
-            <p className="mx-auto max-w-3xl text-center text-lg text-gray-700">
-              Rural Connections to Research offers a comprehensive suite of
-              services designed to bring clinical research opportunities to
-              rural communities across the Mountain West.
-            </p>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Staggered Services Section */}
       <section className="py-16">
@@ -375,16 +211,20 @@ export default async function Services() {
               >
                 {/* Image/Icon Column */}
                 <div className="md:w-1/2">
-                  {service.image ? (
+                  {service.image && !serviceImageErrors[index] ? (
                     // Use actual image if available
                     <div className="overflow-hidden rounded-lg shadow-lg">
                       <div className="relative h-64 w-full md:h-80">
                         <Image
-                          src={service.image}
+                          src={
+                            ensureAbsoluteUrl(service.image) ||
+                            getFallbackImage('thumbnail')
+                          }
                           alt={service.title}
                           fill
                           sizes="(max-width: 768px) 100vw, 50vw"
                           className="object-cover transition-transform duration-300 hover:scale-105"
+                          onError={() => handleServiceImageError(index)}
                         />
                       </div>
                     </div>
@@ -521,4 +361,188 @@ export default async function Services() {
       </section>
     </>
   );
+}
+
+// Helper function to fetch and prepare data
+function useServicesData() {
+  const [data, setData] = useState({
+    serviceOfferings: [] as ServiceOffering[],
+    detailedServices: [] as DetailedService[],
+    pageTitle: 'Our Services',
+    heroImageUrl: null as string | null,
+    staggeredImages: [] as string[],
+    staggeredText: [] as any[],
+    showApiError: false,
+  });
+
+  // Use useEffect to fetch data on component mount
+  useEffect(() => {
+    async function fetchData() {
+      // Define hardcoded service offerings
+      const serviceOfferings: ServiceOffering[] = [
+        {
+          title: 'Research Phlebotomy Collective',
+          description:
+            'Our network of rural phlebotomy sites allows study participants to complete blood draws locally, without traveling to distant academic centers.',
+          icon: 'phlebotomy',
+          linkHref: '/research_sites',
+          linkText: 'Find a location',
+        },
+        {
+          title: 'Virtual Trial Support',
+          description:
+            'We provide technology and support for participants to complete study visits from home, with remote monitoring and telehealth capabilities.',
+          icon: 'virtual',
+          linkHref: '/toolbox',
+          linkText: 'Learn more',
+        },
+        {
+          title: 'Investigator Consultation',
+          description:
+            'We offer consultation services for researchers looking to expand their studies to rural areas, with expertise in recruitment and compliance.',
+          icon: 'consultation',
+          linkHref: '/consultation',
+          linkText: 'Schedule a consultation',
+        },
+        {
+          title: 'Community Engagement',
+          description:
+            'We build relationships with rural healthcare providers and communities to increase awareness and participation in clinical trials.',
+          icon: 'community',
+          linkHref: '/about',
+          linkText: 'Our approach',
+        },
+      ];
+
+      // Define detailed service descriptions
+      const detailedServices: DetailedService[] = [
+        {
+          title: 'Research Phlebotomy Collective',
+          description: `Our Research Phlebotomy Collective connects rural participants with convenient local phlebotomy sites. This network eliminates the need for long-distance travel to research centers, making participation in clinical trials more accessible.
+          
+          Participants can have their blood drawn at a facility near their home, with samples properly processed and shipped to the study team. This approach not only increases participation rates but also improves retention by reducing participant burden.`,
+          icon: 'phlebotomy',
+          linkHref: '/research_sites',
+          linkText: 'Find a location near you',
+        },
+        {
+          title: 'Virtual Trial Support',
+          description: `Our comprehensive virtual trial platform enables participants to complete many study visits remotely. Through secure video conferencing, electronic consent processes, and remote monitoring tools, we're reducing barriers to participation.
+          
+          Our team provides technical support to both participants and researchers, ensuring a seamless experience. We can help with study design, implementation of virtual visits, and training for both staff and participants on using virtual research tools.`,
+          icon: 'virtual',
+          linkHref: '/toolbox',
+          linkText: 'Explore our virtual toolbox',
+        },
+        {
+          title: 'Investigator Consultation',
+          description: `Expanding clinical trials to rural areas requires specialized knowledge and experience. Our consultation services provide researchers with guidance on study design, recruitment strategies, regulatory considerations, and operational logistics.
+          
+          We work with investigators to adapt their protocols for rural implementation, helping them navigate challenges related to distance, technology limitations, and unique community needs. Our goal is to ensure that rural participation doesn't compromise study integrity or data quality.`,
+          icon: 'consultation',
+          linkHref: '/consultation',
+          linkText: 'Schedule a no-cost consultation',
+        },
+      ];
+
+      // Variables to store dynamic content
+      let pageContent: DrupalNode | null = null;
+      let heroImageUrl: string | null = null;
+      let pageTitle = 'Our Services';
+      let staggeredImages: string[] = [];
+      let staggeredText: any[] = [];
+      let showApiError = false;
+
+      try {
+        const servicesData = await fetchServicesPageData();
+        const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL?.replace(
+          /[/]+$/,
+          ''
+        );
+
+        if (servicesData?.data) {
+          const result = processServicesPageData(servicesData, baseUrl);
+
+          if (result.pageContent) {
+            pageContent = result.pageContent;
+            heroImageUrl = ensureAbsoluteUrl(result.heroImageUrl);
+            staggeredImages = result.staggeredImages.map(
+              (img) => ensureAbsoluteUrl(img) || getFallbackImage('thumbnail')
+            );
+            staggeredText = result.staggeredText;
+
+            // Update title if available
+            if (pageContent && pageContent.attributes?.title) {
+              pageTitle = pageContent.attributes.title;
+            }
+
+            // Apply staggered text and images to detailed services
+            if (staggeredText.length > 0) {
+              staggeredText.forEach((item, index) => {
+                if (index < detailedServices.length) {
+                  if (item.description) {
+                    detailedServices[index].description = item.description;
+                  } else if (item.text) {
+                    detailedServices[index].description = item.text;
+                  } else if (item.value) {
+                    detailedServices[index].description = item.value;
+                  } else if (typeof item === 'string') {
+                    detailedServices[index].description = item;
+                  }
+
+                  if (item.title) {
+                    detailedServices[index].title = item.title;
+                  }
+
+                  if (item.linkHref) {
+                    detailedServices[index].linkHref = item.linkHref;
+                  } else if (item.link && typeof item.link === 'string') {
+                    detailedServices[index].linkHref = item.link;
+                  }
+
+                  if (item.linkText) {
+                    detailedServices[index].linkText = item.linkText;
+                  } else if (item.link_text) {
+                    detailedServices[index].linkText = item.link_text;
+                  }
+                }
+              });
+            }
+
+            if (staggeredImages.length > 0) {
+              staggeredImages.forEach((imageUrl, index) => {
+                if (index < detailedServices.length) {
+                  detailedServices[index].image = imageUrl;
+                }
+              });
+            }
+          } else {
+            showApiError = true;
+          }
+        } else {
+          showApiError = true;
+        }
+      } catch (error) {
+        console.error(
+          'Error loading services page:',
+          error instanceof Error ? error.message : 'Unknown error'
+        );
+        showApiError = true;
+      }
+
+      setData({
+        serviceOfferings,
+        detailedServices,
+        pageTitle,
+        heroImageUrl,
+        staggeredImages,
+        staggeredText,
+        showApiError,
+      });
+    }
+
+    fetchData();
+  }, []);
+
+  return data;
 }

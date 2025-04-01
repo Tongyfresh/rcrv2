@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { ensureAbsoluteUrl } from '@/app/utils/urlHelper';
 
 interface VideoPlayerProps {
   videoId: string;
@@ -22,46 +23,19 @@ export default function VideoPlayer({
   useEffect(() => {
     const loadThumbnail = async () => {
       try {
-        const baseUrl =
-          process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0];
-        if (!baseUrl) throw new Error('API URL not configured');
+        // Use the base URL directly
+        const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL;
+        if (!baseUrl) throw new Error('Drupal base URL not configured');
 
-        const response = await fetch(
-          `${baseUrl}/jsonapi/media/image?filter[name][operator]=CONTAINS&filter[name][value]=${encodeURIComponent(imageName)}`,
-          {
-            headers: {
-              Accept: 'application/vnd.api+json',
-              'Content-Type': 'application/vnd.api+json',
-            },
-          }
-        );
-
-        if (!response.ok) throw new Error('Failed to fetch image');
-
-        const data = await response.json();
-        const fileUrl =
-          data.data[0]?.relationships?.field_media_image?.data?.id;
-
-        if (fileUrl) {
-          const fileResponse = await fetch(
-            `${baseUrl}/jsonapi/file/file/${fileUrl}`,
-            {
-              headers: {
-                Accept: 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json',
-              },
-            }
-          );
-
-          if (!fileResponse.ok) throw new Error('Failed to fetch file');
-
-          const fileData = await fileResponse.json();
-          const url = fileData.data?.attributes?.uri?.url;
-
-          if (url) {
-            setThumbnailUrl(new URL(url, baseUrl).href);
-          }
+        // If imageName is a full URL or path, use it directly
+        if (imageName.startsWith('http') || imageName.startsWith('/')) {
+          setThumbnailUrl(ensureAbsoluteUrl(imageName));
+          return;
         }
+
+        // Otherwise, construct the URL to the file
+        const thumbnailPath = `/sites/default/files/${imageName}`;
+        setThumbnailUrl(ensureAbsoluteUrl(thumbnailPath));
       } catch (err) {
         const error = err as Error;
         setError(error.message);
@@ -69,7 +43,9 @@ export default function VideoPlayer({
       }
     };
 
-    loadThumbnail();
+    if (imageName) {
+      loadThumbnail();
+    }
   }, [imageName]);
 
   const handlePlay = () => setIsPlaying(true);

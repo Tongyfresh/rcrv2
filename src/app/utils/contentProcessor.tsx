@@ -9,8 +9,18 @@ import {
   DrupalEntity,
   ProcessedImage,
   HomePageData,
+  ProcessedToolboxData,
+  ProcessedToolboxResource,
 } from '@/types/drupal';
 import { Partner } from '../components/logoBar';
+import {
+  ensureAbsoluteUrl,
+  getFallbackImage,
+  processImageUrl,
+  processFileUrl,
+  processRelationshipImage,
+  getImageUrl,
+} from './urlHelper';
 
 /**
  * Interface definitions
@@ -25,7 +35,7 @@ export interface ProcessedHomeData {
   partners: PartnerData[];
   mapLocationsLeft: string;
   mapLocationsRight: string;
-  whyRcrContent: string; // Added field for "Why RCR?" content
+  whyRcrContent: string;
 }
 
 export interface CardData {
@@ -89,6 +99,21 @@ interface ImageReference {
 }
 
 /**
+ * Define an interface for ToolboxResource
+ */
+interface ToolboxResource {
+  id: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: string;
+  category: string;
+  lastUpdated: string;
+  imageUrl?: string | null;
+}
+
+/**
  * Process content with embedded images
  * Replaces image references in HTML content with proper URLs
  */
@@ -118,13 +143,15 @@ export async function processBodyContent(
                 (item) => item.attributes.name === filename
               );
               if (mediaItem?.attributes?.uri?.url) {
-                let imageUrl = new URL(mediaItem.attributes.uri.url, baseURL)
-                  .href;
-                // In your image URL handling code:
-                if (imageUrl && baseURL && imageUrl.startsWith('/')) {
-                  imageUrl = `${baseURL}${imageUrl}`;
+                let imageUrl = processImageUrl(
+                  mediaItem,
+                  [],
+                  'field_media_image',
+                  baseURL
+                );
+                if (imageUrl) {
+                  $(img).attr('src', imageUrl);
                 }
-                $(img).attr('src', imageUrl);
               }
             } catch (error) {
               console.error(`Error processing image ${filename}:`, error);
@@ -360,12 +387,7 @@ export function extractTableData(html: string): any[] {
 /**
  * Main function to process homepage data from Drupal
  */
-export function processHomePageData(data: any, baseUrl?: string): any {
-  const baseURL =
-    baseUrl ||
-    process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0] ||
-    '';
-
+export function processHomePageData(data: any): any {
   // Return default values if data is missing
   if (!data?.data || (Array.isArray(data.data) && data.data.length === 0)) {
     return {
@@ -385,39 +407,27 @@ export function processHomePageData(data: any, baseUrl?: string): any {
   // Use the first item if it's an array
   const homePage = Array.isArray(data.data) ? data.data[0] : data.data;
 
-  // Log available fields for debugging
-  const attributes = Object.keys(homePage.attributes || {});
-  const relationships = Object.keys(homePage.relationships || {});
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('Available attributes:', attributes.join(', '));
-    console.log('Available relationships:', relationships.join(', '));
-  }
-
   // Process all content elements
   const heroImageUrl = processRelationshipImage(
     data,
     homePage,
-    'field_hero_image',
-    baseURL
+    'field_hero_image'
   );
   const articleImageUrl = processRelationshipImage(
     data,
     homePage,
-    'field_article_image',
-    baseURL
+    'field_article_image'
   );
   const mapImageUrl = processRelationshipImage(
     data,
     homePage,
-    'field_rcr_map_image',
-    baseURL
+    'field_rcr_map_image'
   );
 
   // Process cards with error handling
   let cards: CardData[] = [];
   try {
-    cards = processCardData(data, homePage, baseURL);
+    cards = processCardData(data, homePage);
   } catch (error) {
     console.error('Error processing cards:', error);
     cards = [];
@@ -433,7 +443,7 @@ export function processHomePageData(data: any, baseUrl?: string): any {
   // Process partners with error handling
   let partners: PartnerData[] = [];
   try {
-    partners = processPartnerData(data, homePage, baseURL);
+    partners = processPartnerData(data, homePage);
   } catch (error) {
     console.error('Error processing partners:', error);
     partners = [];
@@ -550,88 +560,11 @@ export function processHomePageData(data: any, baseUrl?: string): any {
 }
 
 /**
- * Helper for processing relationship image fields with error handling
- */
-function processRelationshipImage(
-  data: DrupalResponse,
-  entity: DrupalEntity,
-  fieldName: string,
-  baseURL: string
-): string | null {
-  try {
-    if (!entity.relationships?.[fieldName]?.data) return null;
-
-    const relationshipData = entity.relationships[fieldName].data;
-    const mediaId = Array.isArray(relationshipData)
-      ? relationshipData[0]?.id
-      : relationshipData.id;
-
-    if (!mediaId) return null;
-
-    return getImageUrl(data, mediaId, baseURL);
-  } catch (error) {
-    console.error(`Error processing ${fieldName} image:`, error);
-    return null;
-  }
-}
-
-/**
- * Extract image URL from Drupal entity references
- */
-export function getImageUrl(
-  data: DrupalResponse,
-  mediaId: string | undefined,
-  baseURL: string
-): string | null {
-  if (!mediaId || !data.included) return null;
-
-  try {
-    // Find the media entity
-    const mediaEntity = data.included.find(
-      (item) => item.id === mediaId && item.type.includes('media')
-    );
-
-    if (!mediaEntity?.relationships?.field_media_image?.data) return null;
-
-    // Get file ID safely, handling both array and single object formats
-    const fileData = mediaEntity.relationships.field_media_image.data;
-    const fileId = Array.isArray(fileData) ? fileData[0]?.id : fileData.id;
-
-    if (!fileId) return null;
-
-    // Find the file entity
-    const fileEntity = data.included.find(
-      (item) => item.id === fileId && item.type === 'file--file'
-    );
-
-    if (!fileEntity?.attributes?.uri?.url) return null;
-
-    // Ensure URL starts correctly
-    let fileUrl = fileEntity.attributes.uri.url;
-    // In your image URL handling code:
-    if (fileUrl && baseURL && fileUrl.startsWith('/')) {
-      fileUrl = `${baseURL}${fileUrl}`;
-    }
-
-    // For debugging in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`Found image URL: ${fileUrl} for media ID: ${mediaId}`);
-    }
-
-    return fileUrl;
-  } catch (error) {
-    console.error(`Error extracting image URL for media ID ${mediaId}:`, error);
-    return null;
-  }
-}
-
-/**
  * Process resource card data
  */
 function processCardData(
   data: DrupalResponse,
-  homePage: DrupalEntity,
-  baseURL: string
+  homePage: DrupalEntity
 ): CardData[] {
   const fieldName = 'field_rcr_card_images';
 
@@ -648,20 +581,19 @@ function processCardData(
       homePage.attributes.field_rcr_card_description || [];
 
     return cardImageData.map((imageData, index) => {
-      let imageUrl = getImageUrl(data, imageData.id, baseURL);
-
-      // In your image URL handling code:
-      if (imageUrl && baseURL && imageUrl.startsWith('/')) {
-        imageUrl = `${baseURL}${imageUrl}`;
-      }
+      let imageUrl = getImageUrl(data, imageData.id);
 
       // Find the media entity for additional data
       const mediaEntity = data.included?.find(
-        (item) => item.id === imageData.id && item.type.includes('media')
+        (item: {
+          id: string;
+          type: string;
+          attributes?: any;
+          relationships?: any;
+        }) => item.id === imageData.id && item.type.includes('media')
       );
 
       // Get the appropriate title and description for this card
-      // Use the index to match title and description arrays
       const title = Array.isArray(cardTitles)
         ? cardTitles[index] || cardTitles[0]
         : cardTitles;
@@ -670,7 +602,6 @@ function processCardData(
         ? cardDescriptions[index] || cardDescriptions[0]
         : cardDescriptions;
 
-      // Build card data with the matched title and description
       return {
         title,
         description,
@@ -690,8 +621,7 @@ function processCardData(
  */
 function processPartnerData(
   data: DrupalResponse,
-  homePage: DrupalEntity,
-  baseURL: string
+  homePage: DrupalEntity
 ): PartnerData[] {
   const fieldName = 'field_partner_logo';
 
@@ -705,19 +635,18 @@ function processPartnerData(
       : [homePage.relationships[fieldName].data];
 
     return partnerLogoData.map((logoData) => {
-      let logoUrl = getImageUrl(data, logoData.id, baseURL);
-
-      // In your image URL handling code:
-      if (logoUrl && baseURL && logoUrl.startsWith('/')) {
-        logoUrl = `${baseURL}${logoUrl}`;
-      }
+      let logoUrl = getImageUrl(data, logoData.id);
 
       // Find the media entity
       const mediaEntity = data.included?.find(
-        (item) => item.id === logoData.id && item.type.includes('media')
+        (item: {
+          id: string;
+          type: string;
+          attributes?: any;
+          relationships?: any;
+        }) => item.id === logoData.id && item.type.includes('media')
       );
 
-      // Return partner data with fallbacks
       return {
         id: logoData.id,
         name: safelyGetField(mediaEntity, 'attributes.name', 'Partner'),
@@ -780,15 +709,6 @@ export function processPageData(
     return { pageContent: null };
   }
 
-  // Use the same baseURL computation as in your other functions if not provided
-  const effectiveBaseUrl =
-    baseUrl ||
-    process.env.NEXT_PUBLIC_DRUPAL_API_URL?.split('/jsonapi')[0]?.replace(
-      /[/]+$/,
-
-      ''
-    );
-
   // Extract the page node
   const pageContent = Array.isArray(data.data) ? data.data[0] : data.data;
 
@@ -797,35 +717,12 @@ export function processPageData(
   }
 
   // Extract the hero image if available
-  let heroImageUrl = null;
-
-  if (pageContent.relationships?.field_article_image?.data) {
-    const mediaId = pageContent.relationships.field_article_image.data.id;
-
-    const mediaEntity = data.included?.find(
-      (item: any) => item.id === mediaId && item.type.includes('media')
-    );
-
-    if (mediaEntity?.relationships?.field_media_image?.data) {
-      const fileId = mediaEntity.relationships.field_media_image.data.id;
-
-      const fileEntity = data.included?.find(
-        (item: any) => item.id === fileId && item.type === 'file--file'
-      );
-
-      if (fileEntity?.attributes?.uri?.url) {
-        // Check if it's a relative URL
-        let imageUrl = fileEntity.attributes.uri.url;
-        // In your image URL handling code:
-        if (imageUrl && effectiveBaseUrl && imageUrl.startsWith('/')) {
-          imageUrl = `${effectiveBaseUrl}${imageUrl}`;
-        }
-        heroImageUrl = imageUrl;
-
-        console.log('Found image URL:', heroImageUrl);
-      }
-    }
-  }
+  const heroImageUrl = processRelationshipImage(
+    data,
+    pageContent,
+    'field_article_image',
+    baseUrl || ''
+  );
 
   return {
     pageContent,
@@ -835,11 +732,8 @@ export function processPageData(
 
 /**
  * Process the services page data from Drupal
- * @param data The raw data from Drupal API
- * @param baseUrl The base URL for resolving relative URLs
- * @returns Processed data with essential fields extracted
  */
-export function processServicesPageData(data: any, baseUrl?: string) {
+export function processServicesPageData(data: any) {
   // Initialize result with default values
   const result = {
     pageContent: null as any,
@@ -865,54 +759,19 @@ export function processServicesPageData(data: any, baseUrl?: string) {
   if (data.included && Array.isArray(data.included)) {
     try {
       // Extract hero image if available - try field_hero_image first
-      if (pageContent.relationships?.field_hero_image?.data) {
-        const mediaId = pageContent.relationships.field_hero_image.data.id;
+      result.heroImageUrl = processRelationshipImage(
+        data,
+        pageContent,
+        'field_hero_image'
+      );
 
-        const mediaEntity = data.included.find(
-          (item: any) => item.id === mediaId && item.type.includes('media')
-        );
-
-        if (mediaEntity?.relationships?.field_media_image?.data) {
-          const fileId = mediaEntity.relationships.field_media_image.data.id;
-
-          const fileEntity = data.included.find(
-            (item: any) => item.id === fileId && item.type === 'file--file'
-          );
-
-          if (fileEntity?.attributes?.uri?.url) {
-            let imageUrl = fileEntity.attributes.uri.url;
-            // In your image URL handling code:
-            if (imageUrl && baseUrl && imageUrl.startsWith('/')) {
-              imageUrl = `${baseUrl}${imageUrl}`;
-            }
-            result.heroImageUrl = imageUrl;
-          }
-        }
-      }
       // If not found, try field_article_image as fallback
-      else if (pageContent.relationships?.field_article_image?.data) {
-        const mediaId = pageContent.relationships.field_article_image.data.id;
-
-        const mediaEntity = data.included.find(
-          (item: any) => item.id === mediaId && item.type.includes('media')
+      if (!result.heroImageUrl) {
+        result.heroImageUrl = processRelationshipImage(
+          data,
+          pageContent,
+          'field_article_image'
         );
-
-        if (mediaEntity?.relationships?.field_media_image?.data) {
-          const fileId = mediaEntity.relationships.field_media_image.data.id;
-
-          const fileEntity = data.included.find(
-            (item: any) => item.id === fileId && item.type === 'file--file'
-          );
-
-          if (fileEntity?.attributes?.uri?.url) {
-            let imageUrl = fileEntity.attributes.uri.url;
-            // In your image URL handling code:
-            if (imageUrl && baseUrl && imageUrl.startsWith('/')) {
-              imageUrl = `${baseUrl}${imageUrl}`;
-            }
-            result.heroImageUrl = imageUrl;
-          }
-        }
       }
 
       // Extract staggered images
@@ -925,27 +784,9 @@ export function processServicesPageData(data: any, baseUrl?: string) {
           : [pageContent.relationships.field_staggered_images.data];
 
         for (const imageRef of imageRefs) {
-          const mediaId = imageRef.id;
-
-          const mediaEntity = data.included.find(
-            (item: any) => item.id === mediaId && item.type.includes('media')
-          );
-
-          if (mediaEntity?.relationships?.field_media_image?.data) {
-            const fileId = mediaEntity.relationships.field_media_image.data.id;
-
-            const fileEntity = data.included.find(
-              (item: any) => item.id === fileId && item.type === 'file--file'
-            );
-
-            if (fileEntity?.attributes?.uri?.url) {
-              let imageUrl = fileEntity.attributes.uri.url;
-              // In your image URL handling code:
-              if (imageUrl && baseUrl && imageUrl.startsWith('/')) {
-                imageUrl = `${baseUrl}${imageUrl}`;
-              }
-              result.staggeredImages.push(imageUrl);
-            }
+          const imageUrl = getImageUrl(data, imageRef.id);
+          if (imageUrl) {
+            result.staggeredImages.push(imageUrl);
           }
         }
       }
@@ -998,14 +839,8 @@ export function processServicesPageData(data: any, baseUrl?: string) {
 
 /**
  * Process the about page data from Drupal
- * @param data The raw data from Drupal API
- * @param baseUrl The base URL for resolving relative URLs
- * @returns Processed data with essential fields extracted
  */
-export function processAboutPageData(
-  data: DrupalResponse,
-  baseUrl: string
-): AboutPageData {
+export function processAboutPageData(data: DrupalResponse): AboutPageData {
   // Return default values if data is missing
   if (!data?.data || (Array.isArray(data.data) && data.data.length === 0)) {
     return {
@@ -1031,44 +866,11 @@ export function processAboutPageData(
   }
 
   // Process hero image
-  let heroImageUrl: string | null = null;
-  const heroImageRelationship =
-    pageContent.relationships?.field_hero_image?.data;
-
-  if (heroImageRelationship) {
-    const heroImageId = Array.isArray(heroImageRelationship)
-      ? heroImageRelationship[0]?.id
-      : heroImageRelationship.id;
-
-    if (heroImageId && data.included) {
-      // First look for the media entity
-      const mediaEntity = data.included.find(
-        (item) => item.id === heroImageId && item.type === 'media--image'
-      );
-
-      if (mediaEntity?.relationships?.field_media_image?.data) {
-        // Get the file ID from the media entity
-        const fileData = mediaEntity.relationships.field_media_image.data;
-        const fileId = Array.isArray(fileData) ? fileData[0]?.id : fileData.id;
-
-        if (fileId) {
-          // Find the file entity using the file ID
-          const fileEntity = data.included.find(
-            (item) => item.id === fileId && item.type === 'file--file'
-          );
-
-          if (fileEntity?.attributes?.uri?.url) {
-            const imageUrl = fileEntity.attributes.uri.url;
-            heroImageUrl = imageUrl.startsWith('/')
-              ? `${baseUrl}${imageUrl}`
-              : imageUrl;
-
-            console.log('Found hero image URL:', heroImageUrl);
-          }
-        }
-      }
-    }
-  }
+  const heroImageUrl = processRelationshipImage(
+    data,
+    pageContent,
+    'field_hero_image'
+  );
 
   // Process impact stats from field_impact_text
   const impactStats: ImpactStat[] = [];
@@ -1155,36 +957,7 @@ export function processAboutPageData(
   // Process each team member card image
   for (let index = 0; index < cardImagesRefs.length; index++) {
     const cardRef = cardImagesRefs[index];
-    let imageUrl = '';
-
-    if (data.included) {
-      // First look for the media entity
-      const mediaEntity = data.included.find(
-        (item) => item.id === cardRef.id && item.type === 'media--image'
-      );
-
-      if (mediaEntity?.relationships?.field_media_image?.data) {
-        // Get the file ID
-        const fileData = mediaEntity.relationships.field_media_image.data;
-        const fileId = Array.isArray(fileData) ? fileData[0]?.id : fileData.id;
-
-        if (fileId) {
-          // Find the file entity
-          const fileEntity = data.included.find(
-            (item) => item.id === fileId && item.type === 'file--file'
-          );
-
-          if (fileEntity?.attributes?.uri?.url) {
-            const url = fileEntity.attributes.uri.url;
-            imageUrl = url.startsWith('/') ? `${baseUrl}${url}` : url;
-            console.log(
-              `Found team member image URL for member ${index}:`,
-              imageUrl
-            );
-          }
-        }
-      }
-    }
+    const imageUrl = getImageUrl(data, cardRef.id);
 
     // Get corresponding title and description if available
     const name =
@@ -1199,7 +972,7 @@ export function processAboutPageData(
       name,
       role,
       bio,
-      image: imageUrl,
+      image: imageUrl || '',
     });
   }
 
@@ -1209,4 +982,365 @@ export function processAboutPageData(
     impactStats,
     teamMembers,
   };
+}
+
+/**
+ * Process toolbox_resource content type data
+ */
+export function processToolboxResourceData(data: any): ProcessedToolboxData {
+  try {
+    if (!data?.data) {
+      console.warn('No data available to process');
+      return generateFallbackToolboxData();
+    }
+
+    // Log incoming data structure
+    console.log('Processing toolbox data:', {
+      hasData: !!data.data,
+      dataType: Array.isArray(data.data) ? 'array' : 'single',
+      includedCount: data.included?.length || 0,
+    });
+
+    const resources = Array.isArray(data.data) ? data.data : [data.data];
+    const mainResource = resources[0];
+
+    if (!mainResource) {
+      console.warn('No main resource found');
+      return generateFallbackToolboxData();
+    }
+
+    // Process page content from the first resource's body
+    const pageContent = mainResource?.attributes?.body?.processed || null;
+
+    // Process hero image if available
+    const heroImageUrl = processRelationshipImage(
+      data,
+      mainResource,
+      'field_hero_image'
+    );
+
+    console.log('Hero image processing:', {
+      found: !!heroImageUrl,
+      url: heroImageUrl,
+    });
+
+    // Extract categories from field_resource_category
+    const categories = resources
+      .flatMap((resource: any) => {
+        const categoryField =
+          resource.attributes?.field_resource_category || [];
+        return categoryField.map(
+          (cat: any) => cat.processed || cat.value || ''
+        );
+      })
+      .filter((category: string) => category) // Remove empty categories
+      .filter(
+        (category: string, index: number, self: string[]) =>
+          self.indexOf(category) === index // Remove duplicates
+      );
+
+    // Add default category if none found
+    if (categories.length === 0) {
+      categories.push('General');
+    }
+
+    // Process resources
+    const processedResources = resources.map(
+      (resource: any): ProcessedToolboxResource => {
+        // Use fallback text for the resource card description
+        const description = 'Download this resource file.';
+
+        // Default resource structure
+        const defaultResource: ProcessedToolboxResource = {
+          id: resource.id,
+          title: resource.attributes?.title || 'Untitled Resource',
+          description: transformDrupalHTML(description),
+          fileUrl: '#',
+          fileType: 'pdf',
+          fileSize: 'Unknown size',
+          category: categories[0],
+          lastUpdated: formatDate(
+            resource.attributes?.changed || resource.attributes?.created
+          ),
+        };
+
+        // Process resource files
+        let fileRef = null;
+        const resourceRelationship =
+          resource.relationships?.field_resource_file?.data;
+
+        if (resourceRelationship) {
+          // If relationship exists, use it directly
+          const fileRefs = Array.isArray(resourceRelationship)
+            ? resourceRelationship
+            : [resourceRelationship];
+          fileRef = fileRefs[0];
+          console.log(
+            'Found file reference in resource relationships:',
+            fileRef?.id
+          );
+        } else if (data.included) {
+          // If no relationship, try finding the FIRST file--file entity in the included array
+          // NOTE: This assumes a 1:1 relationship for this specific content type response structure
+          //       and might need refinement if multiple resources or files are present.
+          const includedFileEntity = data.included.find(
+            (item: any) => item.type === 'file--file'
+          );
+          if (includedFileEntity) {
+            fileRef = { id: includedFileEntity.id, type: 'file--file' };
+            console.log('Found file reference in included data:', fileRef?.id);
+          }
+        }
+
+        // If no file reference found anywhere, return default
+        if (!fileRef) {
+          console.log('No file reference found for:', resource.id);
+          return defaultResource;
+        }
+
+        // Find the file entity in included data using the determined fileRef
+        const fileEntity = data.included?.find(
+          (item: any) => item.id === fileRef.id && item.type === fileRef.type
+        );
+
+        if (!fileEntity?.attributes) {
+          console.log('No file entity found for:', fileRef.id);
+          return defaultResource;
+        }
+
+        // Get file details
+        const fileUrl = ensureAbsoluteUrl(
+          fileEntity.attributes.url || fileEntity.attributes.uri?.url || ''
+        );
+        const fileType =
+          fileEntity.attributes.filemime?.split('/').pop() || 'pdf';
+        const fileSize = formatFileSize(fileEntity.attributes.filesize || 0);
+
+        return {
+          ...defaultResource,
+          fileUrl,
+          fileType,
+          fileSize,
+        };
+      }
+    );
+
+    // Log processed resources before returning
+    console.log('Final processedResources:', processedResources);
+
+    // Log processed data
+    console.log('Processed toolbox data:', {
+      title: mainResource?.attributes?.title,
+      hasPageContent: !!pageContent,
+      hasHeroImage: !!heroImageUrl,
+      categoriesCount: categories.length,
+      resourcesCount: processedResources.length,
+    });
+
+    return {
+      title: mainResource?.attributes?.title || 'RCR Toolbox',
+      pageContent: transformDrupalHTML(pageContent || ''),
+      heroImageUrl,
+      categories,
+      resources: processedResources,
+    };
+  } catch (error) {
+    console.error('Error processing toolbox resource data:', error);
+    return generateFallbackToolboxData();
+  }
+}
+
+/**
+ * Format file size in bytes to human readable format
+ */
+function formatFileSize(bytes: number): string {
+  if (!bytes) return 'Unknown size';
+
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex++;
+  }
+
+  return `${Math.round(size * 10) / 10} ${units[unitIndex]}`;
+}
+
+/**
+ * Process toolbox page data from various sources
+ */
+export function processToolboxPageData(data: any): any {
+  try {
+    console.log('Processing toolbox page data');
+
+    // Handle missing or invalid data
+    if (!data?.data) {
+      console.log('No data found, using fallback');
+      return generateFallbackToolboxData();
+    }
+
+    // Convert to array if it's a single node
+    const nodes = Array.isArray(data.data) ? data.data : [data.data];
+    if (nodes.length === 0) {
+      console.log('No nodes found in data, using fallback');
+      return generateFallbackToolboxData();
+    }
+
+    const node = nodes[0];
+    if (!node) {
+      console.log('Invalid node data, using fallback');
+      return generateFallbackToolboxData();
+    }
+
+    // Extract data with safe access
+    const title = node.attributes?.title || 'RCR Toolbox';
+    const pageContent =
+      node.attributes?.body?.processed || node.attributes?.body?.value || null;
+
+    // Try multiple hero image field names
+    const heroImageFieldNames = [
+      'field_hero_image',
+      'field_header_image',
+      'field_banner_image',
+      'field_media',
+      'field_image',
+    ];
+
+    let heroImageUrl = null;
+
+    // Try each potential hero image field name
+    for (const fieldName of heroImageFieldNames) {
+      if (node.relationships?.[fieldName]?.data && data.included) {
+        heroImageUrl = processRelationshipImage(data, node, fieldName);
+        if (heroImageUrl) {
+          console.log(`Found hero image from field: ${fieldName}`);
+          break;
+        }
+      }
+    }
+
+    // Try multiple article image field names
+    const articleImageFieldNames = [
+      'field_article_image',
+      'field_content_image',
+      'field_image',
+    ];
+
+    let articleImageUrl = null;
+
+    // Try each potential article image field name
+    for (const fieldName of articleImageFieldNames) {
+      if (node.relationships?.[fieldName]?.data && data.included) {
+        articleImageUrl = processRelationshipImage(data, node, fieldName);
+        if (articleImageUrl) {
+          console.log(`Found article image from field: ${fieldName}`);
+          break;
+        }
+      }
+    }
+
+    // Extract categories from tags with safe access
+    let categories: string[] = [];
+    if (node.relationships?.field_tags?.data && data.included) {
+      const tagRefs = Array.isArray(node.relationships.field_tags.data)
+        ? node.relationships.field_tags.data
+        : [node.relationships.field_tags.data];
+
+      categories = tagRefs
+        .map((tagRef: { id: string; type: string }) => {
+          const tagEntity = data.included.find(
+            (inc: { id: string; type: string }) =>
+              inc.id === tagRef.id && inc.type === tagRef.type
+          );
+          return tagEntity?.attributes?.name || '';
+        })
+        .filter(Boolean);
+    }
+
+    // Fallback categories
+    if (categories.length === 0) {
+      categories = [
+        'Protocol Packets',
+        'Implementation Kits',
+        'Training Modules',
+        'Technology Playbooks',
+      ];
+    }
+
+    // Generate resources based on categories
+    const resources = generateSampleResources(categories);
+
+    return {
+      title,
+      pageContent,
+      categories,
+      resources,
+      heroImageUrl,
+      articleImageUrl,
+    };
+  } catch (error) {
+    console.error('Error processing toolbox page data:', error);
+    return generateFallbackToolboxData();
+  }
+}
+
+/**
+ * Generate fallback toolbox data
+ */
+export function generateFallbackToolboxData(): any {
+  return {
+    title: 'RCR Toolbox',
+    pageContent:
+      '<p>Access these resources to support your rural clinical research efforts.</p>',
+    categories: [],
+    resources: [],
+    heroImageUrl: null,
+    articleImageUrl: null,
+  };
+}
+
+/**
+ * Generate sample resources based on categories
+ */
+function generateSampleResources(categories: string[]): any[] {
+  const resources: any[] = [];
+
+  for (const category of categories) {
+    const resource = {
+      id: `resource-${category.replace(/\s+/g, '-').toLowerCase()}`,
+      title: category,
+      description: `Description of ${category}`,
+      fileUrl: `https://example.com/${category.replace(/\s+/g, '-').toLowerCase()}.pdf`,
+      fileType: 'PDF',
+      fileSize: '1.2 MB',
+      category,
+      lastUpdated: formatDate(new Date()),
+      imageUrl: getFallbackImage(),
+    };
+
+    resources.push(resource);
+  }
+
+  return resources;
+}
+
+/**
+ * Format date as a readable string
+ */
+export function formatDate(date: Date | string): string {
+  if (!date) return 'Unknown date';
+
+  try {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    return dateObj.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch (e) {
+    console.error('Invalid date:', date, e);
+    return 'Unknown date';
+  }
 }

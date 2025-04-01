@@ -116,10 +116,7 @@ export default async function About() {
     }
 
     // Get the base URL from the environment
-    const baseUrl =
-      process.env.DRUPAL_BASE_URL ||
-      process.env.NEXT_PUBLIC_DRUPAL_BASE_URL ||
-      '';
+    const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL || '';
 
     // Process the data with empty fallbacks
     let processedData;

@@ -5,6 +5,8 @@
  * It's used across the application to provide type safety when working with Drupal data.
  */
 
+import { z } from 'zod';
+
 /**
  * Base Relationship Data interface
  */
@@ -276,4 +278,176 @@ export function isMultipleRelationship(
     typeof field.data[0] === 'object' &&
     'id' in field.data[0]
   );
+}
+
+// Base interfaces for Drupal JSON:API
+export interface DrupalJsonApiResponse<T> {
+  data: T | T[];
+  included?: DrupalEntity[];
+  links?: {
+    self?: { href: string };
+    [key: string]: any;
+  };
+  meta?: {
+    [key: string]: any;
+  };
+}
+
+// Media types
+export interface DrupalMediaImage {
+  type: 'media--image';
+  id: string;
+  attributes: {
+    name: string;
+  };
+  relationships: {
+    field_media_image: {
+      data: {
+        type: 'file--file';
+        id: string;
+      };
+    };
+  };
+}
+
+export interface DrupalFile {
+  type: 'file--file';
+  id: string;
+  attributes: {
+    uri: {
+      url: string;
+    };
+    url: string;
+  };
+}
+
+// Toolbox Resource specific types
+export interface DrupalToolboxResource {
+  type: 'node--toolbox_resource';
+  id: string;
+  attributes: {
+    title: string;
+    field_resource_description: Array<{
+      value: string;
+      format: 'basic_html' | 'full_html';
+      processed: string;
+    }>;
+    field_resource_category: Array<{
+      value: string;
+      format: 'basic_html';
+      processed: string;
+    }>;
+    changed?: string;
+    created?: string;
+  };
+  relationships: {
+    field_hero_image?: {
+      data: {
+        type: 'media--image';
+        id: string;
+      };
+    };
+    field_resource_file?: {
+      data:
+        | {
+            type: 'file--file';
+            id: string;
+          }
+        | Array<{
+            type: 'file--file';
+            id: string;
+          }>;
+    };
+    [key: string]: any;
+  };
+}
+
+// Zod schema for runtime validation
+export const ToolboxResourceSchema = z.object({
+  type: z.literal('node--toolbox_resource'),
+  id: z.string(),
+  attributes: z.object({
+    title: z.string(),
+    drupal_internal__nid: z.number(),
+    status: z.boolean(),
+    created: z.string(),
+    changed: z.string(),
+    path: z
+      .object({
+        alias: z.string(),
+        pid: z.number(),
+        langcode: z.string(),
+      })
+      .optional(),
+    body: z
+      .object({
+        value: z.string(),
+        format: z.string(),
+        processed: z.string(),
+        summary: z.string().optional(),
+      })
+      .optional(),
+    field_resource_category: z
+      .array(
+        z.object({
+          value: z.string().optional(),
+          format: z.string().optional(),
+          processed: z.string().optional(),
+        })
+      )
+      .optional(),
+  }),
+  relationships: z
+    .object({
+      field_hero_image: z
+        .object({
+          data: z
+            .object({
+              type: z.string(),
+              id: z.string(),
+            })
+            .nullable(),
+        })
+        .optional(),
+      field_resource_file: z
+        .object({
+          data: z
+            .union([
+              z.object({
+                type: z.string(),
+                id: z.string(),
+              }),
+              z.array(
+                z.object({
+                  type: z.string(),
+                  id: z.string(),
+                })
+              ),
+            ])
+            .nullable(),
+        })
+        .optional(),
+    })
+    .optional(),
+});
+
+// Add a type for the processed resource
+export interface ProcessedToolboxResource {
+  id: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: string;
+  category: string;
+  lastUpdated: string;
+}
+
+// Add a type for the processed toolbox data
+export interface ProcessedToolboxData {
+  title: string;
+  pageContent: string | null;
+  heroImageUrl: string | null;
+  categories: string[];
+  resources: ProcessedToolboxResource[];
 }

@@ -1,17 +1,38 @@
 import type { NextConfig } from 'next';
 
-// Extract domain from DRUPAL_API_URL
-const drupalUrl = process.env.NEXT_PUBLIC_DRUPAL_API_URL
-  ? new URL(process.env.NEXT_PUBLIC_DRUPAL_API_URL).hostname
-  : '127.0.0.1';
+// Get base URL or fallback to localhost
+const drupalBaseUrl =
+  process.env.NEXT_PUBLIC_DRUPAL_BASE_URL || 'http://127.0.0.1';
+
+// Parse URL to extract hostname and port
+let hostname = '127.0.0.1';
+let port: string | undefined;
+
+try {
+  const url = new URL(drupalBaseUrl);
+  hostname = url.hostname;
+  port = url.port || undefined;
+} catch (e) {
+  console.warn('Invalid DRUPAL_BASE_URL, using default: 127.0.0.1');
+}
 
 const nextConfig: NextConfig = {
   images: {
-    domains: [drupalUrl],
-  },
-  env: {
-    NEXT_PUBLIC_DRUPAL_API_URL: process.env.NEXT_PUBLIC_DRUPAL_API_URL,
-    NEXT_PUBLIC_DRUPAL_AUTH_TOKEN: process.env.NEXT_PUBLIC_DRUPAL_AUTH_TOKEN,
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname,
+        port,
+        pathname: '/**',
+      },
+      // Add HTTPS pattern if needed
+      {
+        protocol: 'https',
+        hostname,
+        port,
+        pathname: '/**',
+      },
+    ],
   },
 };
 
