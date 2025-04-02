@@ -11,6 +11,7 @@ import {
   HomePageData,
   ProcessedToolboxData,
   ProcessedToolboxResource,
+  ProcessedLocation,
 } from '@/types/drupal';
 import { Partner } from '../components/logoBar';
 import {
@@ -33,8 +34,7 @@ export interface ProcessedHomeData {
   cards: CardData[];
   cardTitle: string;
   partners: PartnerData[];
-  mapLocationsLeft: string;
-  mapLocationsRight: string;
+  featuredLocationNames: string[];
   whyRcrContent: string;
 }
 
@@ -387,7 +387,7 @@ export function extractTableData(html: string): any[] {
 /**
  * Main function to process homepage data from Drupal
  */
-export function processHomePageData(data: any): any {
+export function processHomePageData(data: DrupalResponse): ProcessedHomeData {
   // Return default values if data is missing
   if (!data?.data || (Array.isArray(data.data) && data.data.length === 0)) {
     return {
@@ -398,8 +398,7 @@ export function processHomePageData(data: any): any {
       cards: [],
       cardTitle: 'Resources',
       partners: [],
-      mapLocationsLeft: '',
-      mapLocationsRight: '',
+      featuredLocationNames: [],
       whyRcrContent: '',
     };
   }
@@ -407,7 +406,6 @@ export function processHomePageData(data: any): any {
   // Use the first item if it's an array
   const homePage = Array.isArray(data.data) ? data.data[0] : data.data;
 
-  // Process all content elements
   const heroImageUrl = processRelationshipImage(
     data,
     homePage,
@@ -424,7 +422,6 @@ export function processHomePageData(data: any): any {
     'field_rcr_map_image'
   );
 
-  // Process cards with error handling
   let cards: CardData[] = [];
   try {
     cards = processCardData(data, homePage);
@@ -433,14 +430,12 @@ export function processHomePageData(data: any): any {
     cards = [];
   }
 
-  // Get card title with fallback
   const cardTitle = safelyGetField(
     homePage.attributes,
     'field_rcr_card_title',
     'Explore Our Resources'
   );
 
-  // Process partners with error handling
   let partners: PartnerData[] = [];
   try {
     partners = processPartnerData(data, homePage);
@@ -449,40 +444,21 @@ export function processHomePageData(data: any): any {
     partners = [];
   }
 
-  // Safely extract map location text fields with fallback to empty string
-  let mapLocationsLeft = '';
-  let mapLocationsRight = '';
+  // --- Process Featured Locations (as Attribute) --- START
+  let featuredLocationNames: string[] = [];
+  const locationsAttribute = safelyGetField(
+    homePage,
+    'attributes.field_featured_locations',
+    []
+  );
 
-  // Check if these fields exist and are properly formatted
-  if (homePage?.attributes) {
-    // For field_map_text_left
-    if (homePage.attributes.field_map_text_left?.processed) {
-      // Use cheerio to parse HTML
-      const $ = cheerio.load(homePage.attributes.field_map_text_left.processed);
-      // Extract text from each paragraph
-      const locations: string[] = [];
-      $('p').each((_, el) => {
-        const text = $(el).text().trim();
-        if (text) locations.push(text);
-      });
-      mapLocationsLeft = locations.join('\n');
-    }
-
-    // For field_map_text_right
-    if (homePage.attributes.field_map_text_right?.processed) {
-      // Use cheerio to parse HTML
-      const $ = cheerio.load(
-        homePage.attributes.field_map_text_right.processed
-      );
-      // Extract text from each paragraph
-      const locations: string[] = [];
-      $('p').each((_, el) => {
-        const text = $(el).text().trim();
-        if (text) locations.push(text);
-      });
-      mapLocationsRight = locations.join('\n');
-    }
+  if (Array.isArray(locationsAttribute)) {
+    featuredLocationNames = locationsAttribute
+      .map((loc: any) => loc?.processed || loc?.value || '') // Extract text
+      .filter((name: string) => name.trim() !== ''); // Remove empty strings
   }
+  console.log('Processed featured location names:', featuredLocationNames);
+  // --- Process Featured Locations (as Attribute) --- END
 
   // Process "Why RCR?" section content
   let whyRcrContent = '';
@@ -553,8 +529,7 @@ export function processHomePageData(data: any): any {
     cards,
     cardTitle,
     partners,
-    mapLocationsLeft,
-    mapLocationsRight,
+    featuredLocationNames,
     whyRcrContent,
   };
 }
@@ -1343,4 +1318,67 @@ export function formatDate(date: Date | string): string {
     console.error('Invalid date:', date, e);
     return 'Unknown date';
   }
+}
+
+/**
+ * Process locations data from Drupal
+ */
+export function processLocationsData(
+  data: DrupalResponse
+): ProcessedLocation[] {
+  if (!data?.data || !Array.isArray(data.data)) {
+    console.log('No location data or data is not an array');
+    return [];
+  }
+
+  const processedLocations: ProcessedLocation[] = data.data.map(
+    (locationNode: DrupalEntity): ProcessedLocation => {
+      const attributes = locationNode.attributes || {};
+
+      // Process logo image using the CORRECT field name: field_partner_logo
+      const logoUrl = processRelationshipImage(
+        data,
+        locationNode,
+        'field_partner_logo'
+      );
+
+      // Process project summary (handle potential structured text)
+      let projectSummary = null;
+      // Ensure we check the correct field name based on Drupal setup
+      const summaryField = attributes.field_location_project_summary;
+      if (summaryField) {
+        if (typeof summaryField === 'string') {
+          projectSummary = summaryField;
+        } else if (summaryField.processed) {
+          projectSummary = transformDrupalHTML(summaryField.processed);
+        } else if (summaryField.value) {
+          projectSummary = summaryField.value;
+        }
+      }
+
+      // Process body (handle potential structured text)
+      let bodyContent = null;
+      const bodyField = attributes.body;
+      if (bodyField) {
+        if (typeof bodyField === 'string') {
+          bodyContent = bodyField;
+        } else if (bodyField.processed) {
+          bodyContent = transformDrupalHTML(bodyField.processed);
+        } else if (bodyField.value) {
+          bodyContent = bodyField.value;
+        }
+      }
+
+      return {
+        id: locationNode.id,
+        name: attributes.title || 'Unnamed Location',
+        logoUrl: logoUrl,
+        projectSummary: projectSummary,
+        body: bodyContent,
+      };
+    }
+  );
+
+  console.log(`Processed ${processedLocations.length} locations.`);
+  return processedLocations;
 }

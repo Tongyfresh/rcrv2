@@ -149,11 +149,16 @@ export function processRelationshipImage(
   baseURL?: string
 ): string | null {
   try {
+    console.log(`Processing relationship image for field: ${fieldName}`);
+    console.log('Entity relationships:', entity.relationships);
+    console.log('Included data:', data.included);
+
     let mediaId: string | undefined = undefined;
 
     // 1. Try getting mediaId from the entity's relationship data
     if (entity.relationships?.[fieldName]?.data) {
       const relationshipData = entity.relationships[fieldName].data;
+      console.log(`Relationship data for ${fieldName}:`, relationshipData);
       mediaId = Array.isArray(relationshipData)
         ? relationshipData[0]?.id
         : relationshipData.id;
@@ -165,9 +170,8 @@ export function processRelationshipImage(
     }
 
     // 2. If not found in relationships, try finding the FIRST media--image in included
-    //    NOTE: This assumes a 1:1 relationship for this field and might need refinement.
     if (!mediaId && data.included) {
-      // TODO: Make the type dynamic based on fieldName or expected type if needed
+      console.log('Searching for media in included data...');
       const includedMedia = data.included.find(
         (item: any) => item.type === 'media--image'
       );
@@ -186,7 +190,9 @@ export function processRelationshipImage(
     }
 
     // 3. Get the image URL using the found mediaId
-    return getImageUrl(data, mediaId, baseURL);
+    const imageUrl = getImageUrl(data, mediaId, baseURL);
+    console.log(`Generated image URL for ${fieldName}:`, imageUrl);
+    return imageUrl;
   } catch (error) {
     console.error(`Error processing ${fieldName} image:`, error);
     return null;

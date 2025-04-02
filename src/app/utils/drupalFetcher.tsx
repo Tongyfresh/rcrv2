@@ -16,6 +16,7 @@ import {
   processToolboxResourceData,
   processToolboxPageData,
   generateFallbackToolboxData,
+  processHomePageData,
 } from './contentProcessor';
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -45,7 +46,7 @@ function buildQueryParams(
 ): string[] {
   const queryParams: string[] = [];
 
-  // Add fields parameter
+  // Add main resource fields parameter
   if (options.fields?.length) {
     const correctedFields = options.fields.map(correctFieldName);
     if (resourceType === 'media--image' || resourceType === 'media') {
@@ -66,17 +67,45 @@ function buildQueryParams(
     const uniqueIncludes = [...new Set(correctedIncludes)];
     queryParams.push(`include=${encodeURIComponent(uniqueIncludes.join(','))}`);
 
-    // Add media fields when including relationships
+    // Add standard media fields when including relationships
     if (uniqueIncludes.some((include) => include.includes('field_'))) {
       if (
-        !queryParams.some((param) => param.includes('fields[media--image]'))
+        !queryParams.some((param) => param.includes('fields[media--image]='))
       ) {
         queryParams.push(`fields[media--image]=name,field_media_image`);
       }
-      if (!queryParams.some((param) => param.includes('fields[file--file]'))) {
+      if (!queryParams.some((param) => param.includes('fields[file--file]='))) {
         queryParams.push(`fields[file--file]=uri,url`);
       }
     }
+
+    // Logic to determine if node--location is included
+    const includesLocations = uniqueIncludes.some((include) => {
+      // Check if the include path directly targets locations or goes through a known location reference field
+      // We assume 'field_featured_locations' for home page (per user instruction, despite API error)
+      // or directly if fetching locations
+      return (
+        include === 'node--location' ||
+        include.startsWith('field_featured_locations')
+      ); // Using user-provided name for home page
+    });
+
+    // Add specific fields for included node--location type
+    if (includesLocations) {
+      if (
+        !queryParams.some((param) => param.includes('fields[node--location]='))
+      ) {
+        // Use the CORRECT logo field name here
+        queryParams.push('fields[node--location]=title,field_partner_logo');
+      }
+    }
+  }
+
+  // Add filter parameter if provided
+  if (options.filter) {
+    const filterKey = Object.keys(options.filter)[0];
+    const filterValue = options.filter[filterKey];
+    queryParams.push(`filter[${filterKey}]=${filterValue}`);
   }
 
   return queryParams;
@@ -93,10 +122,16 @@ export async function fetchDrupalData(
     // Build the API URL
     const apiUrl = buildApiUrl(endpoint);
 
-    // Determine resource type from endpoint
-    const resourceType = endpoint.includes('--')
-      ? endpoint.split('--')[0]
-      : endpoint.split('/')[0];
+    // Determine resource type from endpoint (e.g., node--home_page from node/home_page)
+    let resourceType = '';
+    const endpointParts = endpoint.split('/');
+    if (endpointParts.length > 1) {
+      resourceType = `${endpointParts[0]}--${endpointParts[1]}`;
+    } else if (endpoint.includes('--')) {
+      resourceType = endpoint; // Already in correct format like media--image
+    } else {
+      resourceType = endpoint; // Fallback for simple types
+    }
 
     // Build query parameters
     const queryParams = buildQueryParams(options, resourceType);
@@ -402,16 +437,12 @@ export async function fetchHomePageData(
   options: FetchOptions = {}
 ): Promise<DrupalResponse> {
   try {
-    logDebug('Fetching home page data with field discovery');
+    logDebug('Fetching home page data');
 
-    const { relationships } = await discoverAvailableFields('node/home_page');
-    const hasMapImage = relationships.includes('field_rcr_map_image');
-    const hasArticleImage = relationships.includes('field_article_image');
-
-    logDebug('Field discovery results:', { hasMapImage, hasArticleImage });
+    // No need for field discovery for locations field now, assume it exists based on user confirmation
 
     const requests = [
-      // Basic request - title, body, and main images
+      // Basic request - title, body, and main images (hero, logo)
       fetchDrupalData('node/home_page', {
         fields: ['title', 'body', 'field_hero_image', 'field_rcr_logo'],
         include: [
@@ -443,33 +474,31 @@ export async function fetchHomePageData(
         include: ['field_partner_logo', 'field_partner_logo.field_media_image'],
         revalidate: options.revalidate || 3600,
       }),
+
+      // Why RCR, Map Image, and Featured Locations request
+      fetchDrupalData('node/home_page', {
+        fields: [
+          'field_why_rcr_description',
+          'field_rcr_map_image',
+          'field_featured_locations',
+        ],
+        include: [
+          'field_rcr_map_image',
+          'field_rcr_map_image.field_media_image',
+        ],
+        revalidate: options.revalidate || 3600,
+      }),
+
+      // Article Image request (if still needed)
+      fetchDrupalData('node/home_page', {
+        fields: ['field_article_image'],
+        include: [
+          'field_article_image',
+          'field_article_image.field_media_image',
+        ],
+        revalidate: options.revalidate || 3600,
+      }),
     ];
-
-    if (hasMapImage) {
-      requests.push(
-        fetchDrupalData('node/home_page', {
-          fields: ['field_rcr_map_image'],
-          include: [
-            'field_rcr_map_image',
-            'field_rcr_map_image.field_media_image',
-          ],
-          revalidate: options.revalidate || 3600,
-        })
-      );
-    }
-
-    if (hasArticleImage) {
-      requests.push(
-        fetchDrupalData('node/home_page', {
-          fields: ['field_article_image'],
-          include: [
-            'field_article_image',
-            'field_article_image.field_media_image',
-          ],
-          revalidate: options.revalidate || 3600,
-        })
-      );
-    }
 
     logDebug(`Executing ${requests.length} parallel requests for home page`);
     const responses = await Promise.all(
@@ -489,6 +518,7 @@ export async function fetchHomePageData(
       `Got ${validResponses.length} valid responses out of ${requests.length}`
     );
 
+    // Merge responses (ensure mergeResponses handles the structure correctly)
     return mergeResponses(...validResponses);
   } catch (error) {
     console.error('Error in fetchHomePageData:', error);
@@ -586,6 +616,34 @@ export async function fetchServicesPageData(): Promise<DrupalResponse> {
 }
 
 /**
+ * LOCATIONS PAGE
+ * Fetches all published Location nodes
+ */
+export async function fetchLocationsData(
+  options: FetchOptions = {}
+): Promise<DrupalResponse> {
+  logDebug('Fetching locations data');
+  try {
+    const locationsResponse = await fetchDrupalData('node/location', {
+      fields: ['title', 'body', 'field_location_project_summary'],
+      include: ['field_partner_logo', 'field_partner_logo.field_media_image'],
+      revalidate: options.revalidate || 3600,
+    });
+
+    if (locationsResponse?.data) {
+      logDebug('Successfully fetched locations data');
+      return locationsResponse;
+    } else {
+      logDebug('No data returned for locations');
+      return { data: [] };
+    }
+  } catch (error) {
+    console.error('Error fetching locations data:', error);
+    return { data: [] };
+  }
+}
+
+/**
  * RCR TOOLBOX PAGE
  * Fetch toolbox resources directly from the toolbox_resource content type
  */
@@ -594,6 +652,7 @@ export async function fetchToolboxResources(): Promise<any> {
 
   try {
     const resourceUrl = buildApiUrl('node/toolbox_resource');
+    logDebug(`Constructed resourceUrl for toolbox: ${resourceUrl}`);
 
     // Build comprehensive query params
     const queryParams = [
@@ -611,8 +670,10 @@ export async function fetchToolboxResources(): Promise<any> {
     ].join('&');
 
     logDebug('Fetching with query params:', queryParams);
+    const fullToolboxUrl = `${resourceUrl}?${queryParams}`;
+    logDebug(`Attempting to fetch from: ${fullToolboxUrl}`);
 
-    const response = await fetch(`${resourceUrl}?${queryParams}`, {
+    const response = await fetch(fullToolboxUrl, {
       cache: 'no-store',
       headers: { Accept: 'application/vnd.api+json' },
     });

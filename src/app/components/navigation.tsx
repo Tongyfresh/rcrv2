@@ -167,6 +167,14 @@ const Navigation = () => {
               Services
             </Link>
             <Link
+              href="/locations"
+              className={`flex min-h-[64px] items-center justify-center border-x border-gray-300 px-6 py-4 transition-colors hover:bg-gray-100 hover:text-black ${
+                pathname === '/locations' ? 'bg-gray-100 text-black' : ''
+              }`}
+            >
+              Locations
+            </Link>
+            <Link
               href="/rcrToolbox"
               className={`flex min-h-[64px] items-center justify-center border-x border-gray-300 px-6 py-4 transition-colors hover:bg-gray-100 hover:text-black ${
                 pathname === '/rcrToolbox' ? 'bg-gray-100 text-black' : ''
@@ -224,6 +232,12 @@ const Navigation = () => {
             className="hover:text-highlight block px-3 py-2 text-black transition-colors"
           >
             Services
+          </Link>
+          <Link
+            href="/locations"
+            className="hover:text-highlight block px-3 py-2 text-black transition-colors"
+          >
+            Locations
           </Link>
           <Link
             href="/rcrToolbox"

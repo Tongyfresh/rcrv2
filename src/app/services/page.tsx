@@ -172,8 +172,8 @@ export default function Services() {
         <Image
           src={
             heroImageError
-              ? getFallbackImage('hero')
-              : heroImageUrl || getFallbackImage('hero')
+              ? getFallbackImage()
+              : heroImageUrl || getFallbackImage()
           }
           alt={`${pageTitle} Hero Image`}
           fill
@@ -191,7 +191,7 @@ export default function Services() {
         {/* Content overlay */}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-shadow-lg max-w-4xl p-8 text-center text-gray-100">
-            <h1 className="font-title mb-6 text-4xl font-bold md:text-6xl">
+            <h1 className="font-title mb-6 text-4xl font-bold uppercase md:text-6xl">
               {pageTitle}
             </h1>
           </div>
@@ -218,7 +218,7 @@ export default function Services() {
                         <Image
                           src={
                             ensureAbsoluteUrl(service.image) ||
-                            getFallbackImage('thumbnail')
+                            getFallbackImage()
                           }
                           alt={service.title}
                           fill
@@ -455,19 +455,16 @@ function useServicesData() {
 
       try {
         const servicesData = await fetchServicesPageData();
-        const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL?.replace(
-          /[/]+$/,
-          ''
-        );
+        const baseUrl = process.env.NEXT_PUBLIC_DRUPAL_BASE_URL || '';
 
         if (servicesData?.data) {
-          const result = processServicesPageData(servicesData, baseUrl);
+          const result = processServicesPageData(servicesData);
 
           if (result.pageContent) {
             pageContent = result.pageContent;
             heroImageUrl = ensureAbsoluteUrl(result.heroImageUrl);
             staggeredImages = result.staggeredImages.map(
-              (img) => ensureAbsoluteUrl(img) || getFallbackImage('thumbnail')
+              (img) => ensureAbsoluteUrl(img) || getFallbackImage()
             );
             staggeredText = result.staggeredText;
 

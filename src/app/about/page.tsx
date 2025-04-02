@@ -121,7 +121,7 @@ export default async function About() {
     // Process the data with empty fallbacks
     let processedData;
     try {
-      processedData = processAboutPageData(aboutData, baseUrl);
+      processedData = processAboutPageData(aboutData);
     } catch (processError) {
       console.error('Error processing about page data:', processError);
       processedData = {
@@ -220,7 +220,7 @@ export default async function About() {
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-white" />
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="container px-4 text-center">
-                <h1 className="font-title text-shadow-lg mb-6 text-4xl font-bold text-white md:text-6xl">
+                <h1 className="font-title text-shadow-lg mb-6 text-4xl font-bold text-white uppercase md:text-6xl">
                   {pageTitle}
                 </h1>
                 <p className="text-shadow mx-auto max-w-3xl text-lg text-white md:text-xl">

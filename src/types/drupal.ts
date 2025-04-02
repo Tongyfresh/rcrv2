@@ -138,11 +138,8 @@ export interface DrupalPartnerLogo extends DrupalEntity {
  * Processed Image Interface
  */
 export interface ProcessedImage {
-  id: string;
   url: string;
   alt: string;
-  title: string;
-  drupalId: number | null;
   width?: number;
   height?: number;
 }
@@ -450,4 +447,15 @@ export interface ProcessedToolboxData {
   heroImageUrl: string | null;
   categories: string[];
   resources: ProcessedToolboxResource[];
+}
+
+/**
+ * Processed location data structure
+ */
+export interface ProcessedLocation {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  projectSummary: string | null;
+  body: string | null; // Optional: For detailed view later
 }

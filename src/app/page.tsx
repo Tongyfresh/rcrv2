@@ -39,9 +39,8 @@ export default async function Home() {
       cards,
       cardTitle,
       partners,
-      mapLocationsLeft,
-      mapLocationsRight,
-      whyRcrContent, // Extract this new field
+      featuredLocationNames,
+      whyRcrContent,
     } = processHomePageData(homeData);
 
     if (!homePage) {
@@ -64,7 +63,13 @@ export default async function Home() {
       hasMapImage: !!mapImageUrl,
       cardCount: cards?.length || 0,
       partnerCount: partners?.length || 0,
+      locationNameCount: featuredLocationNames?.length || 0,
     });
+
+    // Split locations for two columns (adjust logic as needed)
+    const half = Math.ceil(featuredLocationNames.length / 2);
+    const mapLocationsLeft = featuredLocationNames.slice(0, half);
+    const mapLocationsRight = featuredLocationNames.slice(half);
 
     return (
       <>
@@ -85,7 +90,7 @@ export default async function Home() {
             {/* Content overlay */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-shadow-lg max-w-4xl p-8 text-center text-gray-100">
-                <div className="font-title mb-6 text-4xl font-bold md:text-6xl">
+                <div className="font-title mb-6 text-4xl font-bold uppercase md:text-6xl">
                   {homePage.attributes?.title ||
                     'Rural Connections to Research'}
                 </div>
@@ -252,45 +257,20 @@ export default async function Home() {
               {/* Left Column Locations */}
               <div className="mb-8 md:mb-0 md:w-1/4 md:pr-6">
                 <ul className="space-y-3 text-gray-700">
-                  {typeof mapLocationsLeft === 'string' &&
-                  mapLocationsLeft.trim() ? (
-                    mapLocationsLeft
-                      .split('\n')
-                      .filter((line: string) => line.trim() !== '')
-                      .map((location: string, index: number) => (
-                        <li
-                          key={`left-location-${index}`}
-                          className="flex items-start py-2"
-                        >
-                          <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                          <span>{location.trim()}</span>
-                        </li>
-                      ))
+                  {mapLocationsLeft.length > 0 ? (
+                    mapLocationsLeft.map((locationName, index) => (
+                      <li
+                        key={`left-location-${index}`}
+                        className="flex items-start py-2"
+                      >
+                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
+                        <span>{locationName}</span>
+                      </li>
+                    ))
                   ) : (
-                    <>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>
-                          St. Mary's Regional Hospital, Grand Junction, CO
-                        </span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Ashton Memorial, Ashton, ID</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Island Park Medical Clinic, Island Park, ID</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Madison Memorial Hospital, Rexburg, ID</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>St. Peter's Health, Helena, MT</span>
-                      </li>
-                    </>
+                    <li className="text-gray-500 italic">
+                      No locations listed.
+                    </li>
                   )}
                 </ul>
               </div>
@@ -319,49 +299,18 @@ export default async function Home() {
               {/* Right Column Locations */}
               <div className="mt-8 md:mt-0 md:w-1/4 md:pl-6">
                 <ul className="space-y-3 text-gray-700">
-                  {mapLocationsRight ? (
-                    mapLocationsRight
-                      .split('\n')
-                      .filter((line: string) => line.trim() !== '')
-                      .map((location: string, index: number) => (
+                  {mapLocationsRight.length > 0
+                    ? mapLocationsRight.map((locationName, index) => (
                         <li
                           key={`right-location-${index}`}
                           className="flex items-start py-2"
                         >
                           <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                          <span>{location.trim()}</span>
+                          <span>{locationName}</span>
                         </li>
                       ))
-                  ) : (
-                    <>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>
-                          Memorial Hospital of Sweetwater, Rock Springs, WY
-                        </span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>St. John's Health, Jackson, WY</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Intermountain Deserts Region, NV</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Carson Tahoe Health, Carson City, NV</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Intermountain Deserts Region, UT</span>
-                      </li>
-                      <li className="flex items-start py-2">
-                        <div className="bg-primary mt-2 mr-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-                        <span>Ashley Regional Medical Center, Vernal, UT</span>
-                      </li>
-                    </>
-                  )}
+                    : // No need for fallback here if left column has fallback
+                      null}
                 </ul>
               </div>
             </div>
